@@ -1,0 +1,29 @@
+[
+  {
+    "slug": "sourabh",
+    "name": "Sourabh Khadav",
+    "role": "Co-Founder & Managing Director",
+    "bio": "Sourabh leads executive operations, investment strategy, and agency growth from our Indore headquarters. Focused on institutionalizing creator business models.",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792339083/talenthaus/team/aczkd87hzwkexlefwrlk.jpg",
+    "cloudinaryPublicId": "talenthaus/team/aczkd87hzwkexlefwrlk",
+    "linkedin": "mailto:info@talenthaus.in"
+  },
+  {
+    "slug": "navneet",
+    "name": "Navneet Jat",
+    "role": "Founder & Head of Brand Partnerships",
+    "bio": "Navneet directs commercial relationships with leading consumer enterprises, brand partners, and media organizations. Has orchestrated landmark creator campaigns.",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792339464/talenthaus/team/yvfxpmdp8uvklbdoyre2.jpg",
+    "cloudinaryPublicId": "talenthaus/team/yvfxpmdp8uvklbdoyre2",
+    "linkedin": "mailto:info@talenthaus.in"
+  },
+  {
+    "slug": "atharv",
+    "name": "Atharv Sharma",
+    "role": "Co-Founder & Managing Director",
+    "bio": "Atharv oversees talent discovery, roster incubation, and creator equity partnerships. Specializes in transforming digital reach into permanent cultural authority.",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792339216/talenthaus/team/v1l5htq25fdd2uusvfli.jpg",
+    "cloudinaryPublicId": "talenthaus/team/v1l5htq25fdd2uusvfli",
+    "linkedin": "mailto:info@talenthaus.in"
+  }
+]

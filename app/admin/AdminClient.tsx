@@ -198,7 +198,7 @@ export function AdminClient() {
 
       if (inqRes.ok) {
         const json = await inqRes.json();
-        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.data && Array.isArray(json.data)) {
           const mapped: InboundInquiry[] = json.data.map((r: Record<string, unknown>) => ({
             id: String(r.id),
             brandName: String(r.brand_name || ""),
@@ -225,7 +225,7 @@ export function AdminClient() {
 
       if (appRes.ok) {
         const json = await appRes.json();
-        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+        if (json.data && Array.isArray(json.data)) {
           const mapped: CreatorApplication[] = json.data.map((r: Record<string, unknown>) => ({
             id: String(r.id),
             fullName: String(r.full_name || ""),

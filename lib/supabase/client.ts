@@ -107,7 +107,7 @@ export function createClient() {
         if (typeof window !== "undefined") {
           try {
             const existingRaw = localStorage.getItem(AUTH_LOCAL_BACKUP_KEY);
-            let backupMap: Record<string, { name: string; value: string }> = {};
+            const backupMap: Record<string, { name: string; value: string }> = {};
             if (existingRaw) {
               try {
                 const list: { name: string; value: string }[] = JSON.parse(existingRaw);

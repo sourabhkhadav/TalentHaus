@@ -13,7 +13,6 @@ export type FounderAuthResult = {
 };
 
 export async function verifyServerFounderAuth(request?: Request | NextRequest): Promise<FounderAuthResult> {
-  const validFounders = ["sourabh", "navneet", "atharv"];
   const founderEmails = ["sourabh@talenthaus.in", "navneet@talenthaus.in", "atharv@talenthaus.in"];
 
   // 1. Check server-side Supabase cookies

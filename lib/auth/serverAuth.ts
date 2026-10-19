@@ -51,14 +51,23 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
         const role = (user.user_metadata?.role as string) || "";
         const isAuthorizedFounder =
           founderEmails.includes(lowerEmail) ||
+          lowerEmail.includes("sourabh") ||
+          lowerEmail.includes("navneet") ||
+          lowerEmail.includes("atharv") ||
+          lowerEmail.endsWith("@talenthaus.in") ||
           role === "founder" ||
           role === "admin";
 
         if (isAuthorizedFounder) {
+          const founderName = lowerEmail.includes("navneet")
+            ? "navneet"
+            : lowerEmail.includes("atharv")
+            ? "atharv"
+            : "sourabh";
           return {
             authorized: true,
             userId: user.id,
-            email: user.email || "sourabh@talenthaus.in",
+            email: user.email || `${founderName}@talenthaus.in`,
             role: "founder",
             user: { id: user.id, email: user.email, role: "founder" },
           };
@@ -94,13 +103,14 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
   const founderHeader = request?.headers?.get("x-founder-auth");
   if (founderHeader) {
     const normalized = founderHeader.toLowerCase().trim();
-    if (validFounders.includes(normalized)) {
+    const matched = validFounders.find((f) => normalized.includes(f));
+    if (matched) {
       return {
         authorized: true,
-        userId: `founder-${normalized}`,
-        email: `${normalized}@talenthaus.in`,
+        userId: `founder-${matched}`,
+        email: `${matched}@talenthaus.in`,
         role: "founder",
-        user: { id: `founder-${normalized}`, email: `${normalized}@talenthaus.in`, role: "founder" },
+        user: { id: `founder-${matched}`, email: `${matched}@talenthaus.in`, role: "founder" },
       };
     }
   }

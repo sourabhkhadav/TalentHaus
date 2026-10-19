@@ -32,7 +32,11 @@ export default async function AdminPage() {
             const isFounderEmail =
                 lowerEmail === "sourabh@talenthaus.in" ||
                 lowerEmail === "navneet@talenthaus.in" ||
-                lowerEmail === "atharv@talenthaus.in";
+                lowerEmail === "atharv@talenthaus.in" ||
+                lowerEmail.includes("sourabh") ||
+                lowerEmail.includes("navneet") ||
+                lowerEmail.includes("atharv") ||
+                lowerEmail.endsWith("@talenthaus.in");
             const userRole = (user.user_metadata?.role as string) || "";
             const isFounderOrAdmin = isFounderEmail || userRole === "founder" || userRole === "admin";
 

@@ -351,7 +351,7 @@ export function addInquiry(inquiry: Omit<InboundInquiry, "id" | "date" | "status
   if (typeof window !== "undefined") {
     const supabase = createClient();
     supabase
-      .from("inbound_inquiries")
+      .from("contact_submissions")
       .insert([
         {
           brand_name: inquiry.brandName,
@@ -362,12 +362,31 @@ export function addInquiry(inquiry: Omit<InboundInquiry, "id" | "date" | "status
           timeline: inquiry.timeline,
           services: inquiry.services || [],
           message: inquiry.message,
-          status: "pending",
+          status: "new",
         },
       ])
       .select()
-      .then(({ data }) => {
-        if (data && data[0]) {
+      .then(({ data, error }) => {
+        if (error && error.code === "PGRST205") {
+          supabase.from("inbound_inquiries").insert([
+            {
+              brand_name: inquiry.brandName,
+              contact_name: inquiry.contactName,
+              email: inquiry.email,
+              phone: inquiry.phone,
+              budget: inquiry.budget,
+              timeline: inquiry.timeline,
+              services: inquiry.services || [],
+              message: inquiry.message,
+              status: "new",
+            },
+          ]).select().then(({ data: altData }) => {
+            if (altData && altData[0]) {
+              const synced = updated.map((i) => (i.id === tempId ? mapInquiryRow(altData[0]) : i));
+              saveToStorage(STORAGE_KEYS.inquiries, synced);
+            }
+          });
+        } else if (data && data[0]) {
           const synced = updated.map((i) => (i.id === tempId ? mapInquiryRow(data[0]) : i));
           saveToStorage(STORAGE_KEYS.inquiries, synced);
         }
@@ -556,7 +575,7 @@ export function useStore() {
           supabase.from("deals").select("*").order("created_at", { ascending: false }),
           supabase.from("expenses").select("*").order("created_at", { ascending: false }),
           supabase.from("tasks").select("*").order("created_at", { ascending: false }),
-          supabase.from("inbound_inquiries").select("*").order("created_at", { ascending: false }),
+          supabase.from("contact_submissions").select("*").order("created_at", { ascending: false }),
           supabase.from("creator_applications").select("*").order("created_at", { ascending: false }),
           supabase.from("influencers").select("*").order("created_at", { ascending: false }),
         ]);

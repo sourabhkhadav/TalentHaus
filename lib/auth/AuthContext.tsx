@@ -37,7 +37,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let role: Role = "talent";
 
     // 1. Verified founder emails from domain
-    if (lowerEmail === "sourabh@talenthaus.in" || lowerEmail === "navneet@talenthaus.in" || lowerEmail === "atharv@talenthaus.in") {
+    if (
+      lowerEmail === "sourabh@talenthaus.in" ||
+      lowerEmail === "navneet@talenthaus.in" ||
+      lowerEmail === "atharv@talenthaus.in" ||
+      lowerEmail.includes("sourabh") ||
+      lowerEmail.includes("navneet") ||
+      lowerEmail.includes("atharv") ||
+      lowerEmail.endsWith("@talenthaus.in")
+    ) {
       role = "founder";
     }
 

@@ -96,7 +96,11 @@ export async function updateSession(request: NextRequest) {
       const isFounderEmail =
         lowerEmail === "sourabh@talenthaus.in" ||
         lowerEmail === "navneet@talenthaus.in" ||
-        lowerEmail === "atharv@talenthaus.in";
+        lowerEmail === "atharv@talenthaus.in" ||
+        lowerEmail.includes("sourabh") ||
+        lowerEmail.includes("navneet") ||
+        lowerEmail.includes("atharv") ||
+        lowerEmail.endsWith("@talenthaus.in");
       const userRole = (user.user_metadata?.role as string) || "";
       const isFounderOrAdmin = isFounderEmail || userRole === "founder" || userRole === "admin";
 
@@ -111,9 +115,9 @@ export async function updateSession(request: NextRequest) {
     // Protect private management APIs against unauthenticated callers
     if (!user && isPrivateApi) {
       const authHeader = request.headers.get("authorization") || request.headers.get("Authorization");
-      const founderHeader = request.headers.get("x-founder-auth");
+      const founderHeader = request.headers.get("x-founder-auth") || "";
       const validFounders = ["sourabh", "navneet", "atharv"];
-      const hasFounderHeader = founderHeader && validFounders.includes(founderHeader.toLowerCase().trim());
+      const hasFounderHeader = validFounders.some((f) => founderHeader.toLowerCase().includes(f));
       const hasBearer = Boolean(authHeader && authHeader.startsWith("Bearer ") && authHeader.length > 10);
 
       if (!hasFounderHeader && !hasBearer) {

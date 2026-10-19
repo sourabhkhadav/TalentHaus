@@ -14,6 +14,7 @@ import {
   ChevronRight,
   Phone,
   Briefcase,
+  RefreshCw,
 } from "lucide-react";
 
 interface InquiriesTabProps {
@@ -21,6 +22,8 @@ interface InquiriesTabProps {
   onStatusChange: (id: string, status: InquiryStatus) => void;
   onOpenNotes: (inquiry: InboundInquiry) => void;
   onViewDetails: (inquiry: InboundInquiry) => void;
+  onRefresh?: () => void;
+  isRefreshing?: boolean;
 }
 
 const STATUS_OPTIONS: { value: InquiryStatus; label: string; color: string }[] = [
@@ -37,6 +40,8 @@ export function InquiriesTab({
   onStatusChange,
   onOpenNotes,
   onViewDetails,
+  onRefresh,
+  isRefreshing,
 }: InquiriesTabProps) {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -85,6 +90,18 @@ export function InquiriesTab({
         </div>
 
         <div className="flex items-center gap-2.5 flex-wrap">
+          {onRefresh && (
+            <button
+              type="button"
+              onClick={onRefresh}
+              disabled={isRefreshing}
+              className="px-3.5 py-2.5 rounded-xl bg-gold/15 border border-gold/30 hover:bg-gold/25 text-gold text-xs font-mono uppercase tracking-wider flex items-center gap-1.5 transition-colors min-h-[44px]"
+            >
+              <RefreshCw size={13} className={isRefreshing ? "animate-spin" : ""} />
+              {isRefreshing ? "Syncing..." : "Sync DB"}
+            </button>
+          )}
+
           <div className="flex items-center gap-1.5 text-xs text-stone">
             <Filter size={14} className="text-gold" /> Filter:
           </div>

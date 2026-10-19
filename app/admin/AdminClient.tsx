@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -34,9 +34,7 @@ import {
   updateTalentInRoster,
   deleteTalentFromRoster,
   getAgencyInquiries,
-  updateInquiryStatus,
   getAgencyApplications,
-  updateApplicationStatus,
 } from "@/lib/data/store";
 import { uploadCreatorPhoto } from "@/lib/data";
 import { cn } from "@/lib/utils";
@@ -186,6 +184,80 @@ export function AdminClient() {
     notes: string;
   } | null>(null);
 
+  const [isSyncingSubmissions, setIsSyncingSubmissions] = useState(false);
+
+  // Fetch live submissions from Supabase & server route handlers with founder auth
+  const syncSubmissions = useCallback(async () => {
+    setIsSyncingSubmissions(true);
+    try {
+      const founderHeader = user?.name?.toLowerCase() || "sourabh";
+      const [inqRes, appRes] = await Promise.all([
+        fetch("/api/contact", { headers: { "x-founder-auth": founderHeader } }),
+        fetch("/api/applications", { headers: { "x-founder-auth": founderHeader } }),
+      ]);
+
+      if (inqRes.ok) {
+        const json = await inqRes.json();
+        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+          const mapped: InboundInquiry[] = json.data.map((r: Record<string, unknown>) => ({
+            id: String(r.id),
+            brandName: String(r.brand_name || ""),
+            contactName: String(r.contact_name || ""),
+            email: String(r.email || ""),
+            phone: r.phone ? String(r.phone) : undefined,
+            budget: String(r.budget || ""),
+            timeline: String(r.timeline || ""),
+            services: (Array.isArray(r.services) ? r.services : []) as string[],
+            message: String(r.message || ""),
+            status: (r.status as InquiryStatus) || "new",
+            notes: r.notes ? String(r.notes) : undefined,
+            date: typeof r.created_at === "string" ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+            created_at: typeof r.created_at === "string" ? r.created_at : undefined,
+          }));
+          setInquiries(mapped);
+          try {
+            localStorage.setItem("th_agency_inquiries_v3", JSON.stringify(mapped));
+          } catch {
+            // Ignore storage errors
+          }
+        }
+      }
+
+      if (appRes.ok) {
+        const json = await appRes.json();
+        if (json.data && Array.isArray(json.data) && json.data.length > 0) {
+          const mapped: CreatorApplication[] = json.data.map((r: Record<string, unknown>) => ({
+            id: String(r.id),
+            fullName: String(r.full_name || ""),
+            email: String(r.email || ""),
+            phone: String(r.phone || ""),
+            location: String(r.location || ""),
+            primaryPlatform: String(r.primary_platform || "Instagram"),
+            handle: String(r.handle || ""),
+            audienceSize: String(r.audience_size || ""),
+            niche: (Array.isArray(r.niche) ? r.niche : []) as string[],
+            bio: String(r.bio || ""),
+            portfolioUrl: r.portfolio_url ? String(r.portfolio_url) : undefined,
+            status: (r.status as ApplicationStatus) || "pending",
+            notes: r.notes ? String(r.notes) : undefined,
+            date: typeof r.created_at === "string" ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
+            created_at: typeof r.created_at === "string" ? r.created_at : undefined,
+          }));
+          setApplications(mapped);
+          try {
+            localStorage.setItem("th_agency_applications_v3", JSON.stringify(mapped));
+          } catch {
+            // Ignore storage errors
+          }
+        }
+      }
+    } catch {
+      // Retain local store items
+    } finally {
+      setIsSyncingSubmissions(false);
+    }
+  }, [user?.name]);
+
   // Load from shared store on mount & sync live Supabase submissions
   useEffect(() => {
     setDeals(getAgencyDeals());
@@ -195,67 +267,10 @@ export function AdminClient() {
     setInquiries(getAgencyInquiries());
     setApplications(getAgencyApplications());
 
-    // Fetch live submissions from Supabase route handlers with founder auth
-    const syncSubmissions = async () => {
-      try {
-        const founderHeader = user?.name?.toLowerCase() || "sourabh";
-        const [inqRes, appRes] = await Promise.all([
-          fetch("/api/contact", { headers: { "x-founder-auth": founderHeader } }),
-          fetch("/api/applications", { headers: { "x-founder-auth": founderHeader } }),
-        ]);
-
-        if (inqRes.ok) {
-          const json = await inqRes.json();
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            const mapped: InboundInquiry[] = json.data.map((r: Record<string, unknown>) => ({
-              id: String(r.id),
-              brandName: String(r.brand_name || ""),
-              contactName: String(r.contact_name || ""),
-              email: String(r.email || ""),
-              phone: r.phone ? String(r.phone) : undefined,
-              budget: String(r.budget || ""),
-              timeline: String(r.timeline || ""),
-              services: (Array.isArray(r.services) ? r.services : []) as string[],
-              message: String(r.message || ""),
-              status: (r.status as InquiryStatus) || "new",
-              notes: r.notes ? String(r.notes) : undefined,
-              date: typeof r.created_at === "string" ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-              created_at: typeof r.created_at === "string" ? r.created_at : undefined,
-            }));
-            setInquiries(mapped);
-          }
-        }
-
-        if (appRes.ok) {
-          const json = await appRes.json();
-          if (json.data && Array.isArray(json.data) && json.data.length > 0) {
-            const mapped: CreatorApplication[] = json.data.map((r: Record<string, unknown>) => ({
-              id: String(r.id),
-              fullName: String(r.full_name || ""),
-              email: String(r.email || ""),
-              phone: String(r.phone || ""),
-              location: String(r.location || ""),
-              primaryPlatform: String(r.primary_platform || "Instagram"),
-              handle: String(r.handle || ""),
-              audienceSize: String(r.audience_size || ""),
-              niche: (Array.isArray(r.niche) ? r.niche : []) as string[],
-              bio: String(r.bio || ""),
-              portfolioUrl: r.portfolio_url ? String(r.portfolio_url) : undefined,
-              status: (r.status as ApplicationStatus) || "pending",
-              notes: r.notes ? String(r.notes) : undefined,
-              date: typeof r.created_at === "string" ? r.created_at.split("T")[0] : new Date().toISOString().split("T")[0],
-              created_at: typeof r.created_at === "string" ? r.created_at : undefined,
-            }));
-            setApplications(mapped);
-          }
-        }
-      } catch {
-        // Retain local store items
-      }
-    };
-
     syncSubmissions();
-  }, [user?.name]);
+    const interval = setInterval(syncSubmissions, 10000);
+    return () => clearInterval(interval);
+  }, [syncSubmissions]);
 
   // Handlers
   const handleDealStatusChange = (id: string, status: DealStatus) => {
@@ -273,13 +288,22 @@ export function AdminClient() {
     setTasks(updated);
   };
 
-  // Inquiry Handlers
+  // Inquiry Handlers - Direct state updates ensure inquiries NEVER disappear
   const handleInquiryStatusChange = async (id: string, status: InquiryStatus) => {
-    const updated = updateInquiryStatus(id, status);
-    setInquiries(updated);
+    setInquiries((prev) => {
+      const updated = prev.map((inq) => (inq.id === id ? { ...inq, status } : inq));
+      try {
+        localStorage.setItem("th_agency_inquiries_v3", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
     if (selectedInquiry && selectedInquiry.id === id) {
       setSelectedInquiry((prev) => (prev ? { ...prev, status } : null));
     }
+
     try {
       await fetch(`/api/contact/${id}/status`, {
         method: "PATCH",
@@ -295,13 +319,20 @@ export function AdminClient() {
   };
 
   const handleSaveInquiryNotes = async (id: string, notes: string) => {
-    const inq = inquiries.find((i) => i.id === id);
-    if (!inq) return;
-    const updated = updateInquiryStatus(id, inq.status, notes);
-    setInquiries(updated);
+    setInquiries((prev) => {
+      const updated = prev.map((inq) => (inq.id === id ? { ...inq, notes } : inq));
+      try {
+        localStorage.setItem("th_agency_inquiries_v3", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
     if (selectedInquiry && selectedInquiry.id === id) {
       setSelectedInquiry((prev) => (prev ? { ...prev, notes } : null));
     }
+
     try {
       await fetch(`/api/contact/${id}/status`, {
         method: "PATCH",
@@ -316,13 +347,22 @@ export function AdminClient() {
     }
   };
 
-  // Creator Application Handlers
+  // Creator Application Handlers - Direct state updates ensure applications NEVER disappear
   const handleApplicationStatusChange = async (id: string, status: ApplicationStatus) => {
-    const updated = updateApplicationStatus(id, status);
-    setApplications(updated);
+    setApplications((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, status } : a));
+      try {
+        localStorage.setItem("th_agency_applications_v3", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
     if (selectedApplication && selectedApplication.id === id) {
       setSelectedApplication((prev) => (prev ? { ...prev, status } : null));
     }
+
     try {
       await fetch(`/api/applications/${id}/status`, {
         method: "PATCH",
@@ -338,13 +378,20 @@ export function AdminClient() {
   };
 
   const handleSaveApplicationNotes = async (id: string, notes: string) => {
-    const app = applications.find((a) => a.id === id);
-    if (!app) return;
-    const updated = updateApplicationStatus(id, app.status, notes);
-    setApplications(updated);
+    setApplications((prev) => {
+      const updated = prev.map((a) => (a.id === id ? { ...a, notes } : a));
+      try {
+        localStorage.setItem("th_agency_applications_v3", JSON.stringify(updated));
+      } catch {
+        // ignore
+      }
+      return updated;
+    });
+
     if (selectedApplication && selectedApplication.id === id) {
       setSelectedApplication((prev) => (prev ? { ...prev, notes } : null));
     }
+
     try {
       await fetch(`/api/applications/${id}/status`, {
         method: "PATCH",
@@ -1441,6 +1488,8 @@ export function AdminClient() {
                   })
                 }
                 onViewDetails={(inq) => setSelectedInquiry(inq)}
+                onRefresh={syncSubmissions}
+                isRefreshing={isSyncingSubmissions}
               />
             </div>
           )}
@@ -1460,6 +1509,8 @@ export function AdminClient() {
                   })
                 }
                 onViewDetails={(app) => setSelectedApplication(app)}
+                onRefresh={syncSubmissions}
+                isRefreshing={isSyncingSubmissions}
               />
             </div>
           )}

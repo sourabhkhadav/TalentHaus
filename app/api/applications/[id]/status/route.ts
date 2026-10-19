@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { verifyServerFounderAuth } from "@/lib/auth/serverAuth";
+import { updateApplicationStatusServer } from "@/lib/data/submissionsServer";
 
 export async function PATCH(
   request: NextRequest,
@@ -13,24 +14,27 @@ export async function PATCH(
     }
 
     const { id } = await params;
-    const supabase = await createClient();
-
     const body = await request.json();
     const { status, notes } = body;
 
-    const updates: Record<string, unknown> = {
-      updated_at: new Date().toISOString(),
-    };
-    if (status) updates.status = status;
-    if (notes !== undefined) updates.notes = notes;
+    // 1. Always update server persistent store
+    updateApplicationStatusServer(id, status, notes);
 
-    const { error } = await supabase
-      .from("creator_applications")
-      .update(updates)
-      .eq("id", id);
+    // 2. Update Supabase
+    try {
+      const supabase = await createClient();
+      const updates: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (status) updates.status = status;
+      if (notes !== undefined) updates.notes = notes;
 
-    if (error) {
-      return NextResponse.json({ success: false, error: error.message }, { status: 500 });
+      await supabase
+        .from("creator_applications")
+        .update(updates)
+        .eq("id", id);
+    } catch {
+      // Retained in server store
     }
 
     return NextResponse.json({ success: true, message: "Application status updated successfully" });

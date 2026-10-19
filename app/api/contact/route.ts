@@ -3,6 +3,11 @@ import { z } from "zod";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 import { verifyServerFounderAuth } from "@/lib/auth/serverAuth";
+import {
+  saveInquiryServer,
+  getInquiriesServer,
+  type ServerInquiry,
+} from "@/lib/data/submissionsServer";
 
 const contactPayloadSchema = z.object({
   brandName: z.string().min(2, "Brand or agency name is required").max(120),
@@ -50,10 +55,12 @@ export async function POST(request: NextRequest) {
     }
 
     const data = validated.data;
-    const supabase = await createClient();
+    const nowIso = new Date().toISOString();
+    let insertedId: string = `sub_${Date.now()}`;
 
-    // 3. Insert into Supabase contact_submissions
-    const submissionRecord = {
+    // 3. Always save to persistent server store first so data is NEVER lost
+    const serverRecord: ServerInquiry = {
+      id: insertedId,
       brand_name: data.brandName.trim(),
       contact_name: data.contactName.trim(),
       email: data.email.trim().toLowerCase(),
@@ -63,29 +70,55 @@ export async function POST(request: NextRequest) {
       services: data.services || [],
       message: data.message.trim(),
       status: "new",
+      notes: null,
       ip_address: ip,
+      created_at: nowIso,
+      updated_at: nowIso,
     };
+    saveInquiryServer(serverRecord);
 
-    let insertedId: string = `sub_${Date.now()}`;
-    const { data: dbData, error: dbError } = await supabase
-      .from("contact_submissions")
-      .insert([submissionRecord])
-      .select("id")
-      .single();
+    // 4. Also insert into Supabase contact_submissions
+    try {
+      const supabase = await createClient();
+      const submissionRecord = {
+        brand_name: serverRecord.brand_name,
+        contact_name: serverRecord.contact_name,
+        email: serverRecord.email,
+        phone: serverRecord.phone,
+        budget: serverRecord.budget,
+        timeline: serverRecord.timeline,
+        services: serverRecord.services,
+        message: serverRecord.message,
+        status: "new",
+        ip_address: ip,
+      };
 
-    if (dbError) {
-      // Fallback try inbound_inquiries if contact_submissions not created yet
-      const { data: altData } = await supabase
-        .from("inbound_inquiries")
+      const { data: dbData, error: dbError } = await supabase
+        .from("contact_submissions")
         .insert([submissionRecord])
         .select("id")
         .single();
 
-      if (altData?.id) {
-        insertedId = altData.id;
+      if (dbError) {
+        // Fallback try inbound_inquiries if contact_submissions not created yet
+        const { data: altData } = await supabase
+          .from("inbound_inquiries")
+          .insert([submissionRecord])
+          .select("id")
+          .single();
+
+        if (altData?.id) {
+          insertedId = altData.id;
+          serverRecord.id = altData.id;
+          saveInquiryServer(serverRecord);
+        }
+      } else if (dbData?.id) {
+        insertedId = dbData.id;
+        serverRecord.id = dbData.id;
+        saveInquiryServer(serverRecord);
       }
-    } else if (dbData?.id) {
-      insertedId = dbData.id;
+    } catch {
+      // Retained in serverRecord
     }
 
     return NextResponse.json({
@@ -106,37 +139,81 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error || "Unauthorized access" }, { status: auth.status || 401 });
     }
 
-    const supabase = await createClient();
-
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
 
-    let query = supabase
-      .from("contact_submissions")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // 1. Fetch from persistent server backup store
+    let serverInquiries = getInquiriesServer();
 
-    if (statusFilter && statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
-    }
-
-    let { data, error } = await query;
-
-    if (error && error.code === "PGRST205") {
-      // Try fallback table
-      const alt = await supabase
-        .from("inbound_inquiries")
+    // 2. Fetch live rows from Supabase
+    try {
+      const supabase = await createClient();
+      let query = supabase
+        .from("contact_submissions")
         .select("*")
         .order("created_at", { ascending: false });
-      data = alt.data;
-      error = alt.error;
+
+      if (statusFilter && statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      let { data, error } = await query;
+
+      if (error && error.code === "PGRST205") {
+        // Try fallback table
+        const alt = await supabase
+          .from("inbound_inquiries")
+          .select("*")
+          .order("created_at", { ascending: false });
+        data = alt.data;
+        error = alt.error;
+      }
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        // Merge Supabase data with server store without duplicates
+        const seenIds = new Set<string>();
+        const merged: ServerInquiry[] = [];
+
+        for (const item of data) {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id);
+          seenIds.add(id);
+          merged.push({
+            id,
+            brand_name: String(row.brand_name || ""),
+            contact_name: String(row.contact_name || ""),
+            email: String(row.email || ""),
+            phone: row.phone ? String(row.phone) : null,
+            budget: String(row.budget || ""),
+            timeline: String(row.timeline || ""),
+            services: (Array.isArray(row.services) ? row.services : []) as string[],
+            message: String(row.message || ""),
+            status: String(row.status || "new"),
+            notes: row.notes ? String(row.notes) : null,
+            ip_address: row.ip_address ? String(row.ip_address) : null,
+            created_at: String(row.created_at || new Date().toISOString()),
+            updated_at: row.updated_at ? String(row.updated_at) : undefined,
+          });
+        }
+
+        // Add any server store items not yet in Supabase
+        for (const s of serverInquiries) {
+          if (!seenIds.has(s.id)) {
+            merged.push(s);
+          }
+        }
+
+        serverInquiries = merged;
+      }
+    } catch {
+      // Retain serverInquiries
     }
 
-    if (error) {
-      return NextResponse.json({ success: true, data: [], notice: "Tables pending SQL migration" });
+    if (statusFilter && statusFilter !== "all") {
+      serverInquiries = serverInquiries.filter((i) => i.status === statusFilter);
     }
 
-    return NextResponse.json({ success: true, data: data || [] });
+    return NextResponse.json({ success: true, data: serverInquiries });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });

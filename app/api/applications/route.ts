@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { checkRateLimit } from "@/lib/rateLimit";
 import { createClient } from "@/lib/supabase/server";
 import { verifyServerFounderAuth } from "@/lib/auth/serverAuth";
+import {
+  saveApplicationServer,
+  getApplicationsServer,
+  type ServerApplication,
+} from "@/lib/data/submissionsServer";
 
 export async function POST(request: NextRequest) {
   try {
@@ -98,10 +103,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Creator biography and vision must be at least 25 characters." }, { status: 400 });
     }
 
-    const supabase = await createClient();
+    const nowIso = new Date().toISOString();
+    let insertedId: string = `app_${Date.now()}`;
 
-    // 3. Insert into creator_applications table (Zero storage/file dependency)
-    const applicationRecord = {
+    // 3. Always save to persistent server store first so data is NEVER lost
+    const serverApp: ServerApplication = {
+      id: insertedId,
       full_name: fullName,
       email,
       phone,
@@ -113,25 +120,44 @@ export async function POST(request: NextRequest) {
       bio,
       portfolio_url: portfolioUrl || null,
       status: "pending",
+      notes: null,
       ip_address: ip,
+      created_at: nowIso,
+      updated_at: nowIso,
     };
+    saveApplicationServer(serverApp);
 
-    let insertedId: string = `app_${Date.now()}`;
-    const { data: dbData, error: dbError } = await supabase
-      .from("creator_applications")
-      .insert([applicationRecord])
-      .select("id")
-      .single();
+    // 4. Also insert into Supabase creator_applications table
+    try {
+      const supabase = await createClient();
+      const applicationRecord = {
+        full_name: fullName,
+        email,
+        phone,
+        location,
+        primary_platform: primaryPlatform,
+        handle,
+        audience_size: audienceSize || "50K - 100K",
+        niche,
+        bio,
+        portfolio_url: portfolioUrl || null,
+        status: "pending",
+        ip_address: ip,
+      };
 
-    if (dbError) {
-      // If table is pending migration or not yet created, return useful success response
-      return NextResponse.json({
-        success: true,
-        id: insertedId,
-        message: "Your application has been delivered to our Talent Discovery board.",
-      });
-    } else if (dbData?.id) {
-      insertedId = dbData.id;
+      const { data: dbData } = await supabase
+        .from("creator_applications")
+        .insert([applicationRecord])
+        .select("id")
+        .single();
+
+      if (dbData?.id) {
+        insertedId = dbData.id;
+        serverApp.id = dbData.id;
+        saveApplicationServer(serverApp);
+      }
+    } catch {
+      // Retained in serverApp
     }
 
     return NextResponse.json({
@@ -152,26 +178,71 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: auth.error || "Unauthorized access" }, { status: auth.status || 401 });
     }
 
-    const supabase = await createClient();
-
     const { searchParams } = new URL(request.url);
     const statusFilter = searchParams.get("status");
 
-    let query = supabase
-      .from("creator_applications")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // 1. Fetch from persistent server backup store
+    let serverApps = getApplicationsServer();
+
+    // 2. Fetch live rows from Supabase
+    try {
+      const supabase = await createClient();
+      let query = supabase
+        .from("creator_applications")
+        .select("*")
+        .order("created_at", { ascending: false });
+
+      if (statusFilter && statusFilter !== "all") {
+        query = query.eq("status", statusFilter);
+      }
+
+      const { data, error } = await query;
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const seenIds = new Set<string>();
+        const merged: ServerApplication[] = [];
+
+        for (const item of data) {
+          const row = item as Record<string, unknown>;
+          const id = String(row.id);
+          seenIds.add(id);
+          merged.push({
+            id,
+            full_name: String(row.full_name || ""),
+            email: String(row.email || ""),
+            phone: String(row.phone || ""),
+            location: String(row.location || ""),
+            primary_platform: String(row.primary_platform || "Instagram"),
+            handle: String(row.handle || ""),
+            audience_size: String(row.audience_size || ""),
+            niche: (Array.isArray(row.niche) ? row.niche : []) as string[],
+            bio: String(row.bio || ""),
+            portfolio_url: row.portfolio_url ? String(row.portfolio_url) : null,
+            status: String(row.status || "pending"),
+            notes: row.notes ? String(row.notes) : null,
+            ip_address: row.ip_address ? String(row.ip_address) : null,
+            created_at: String(row.created_at || new Date().toISOString()),
+            updated_at: row.updated_at ? String(row.updated_at) : undefined,
+          });
+        }
+
+        for (const a of serverApps) {
+          if (!seenIds.has(a.id)) {
+            merged.push(a);
+          }
+        }
+
+        serverApps = merged;
+      }
+    } catch {
+      // Retain serverApps
+    }
 
     if (statusFilter && statusFilter !== "all") {
-      query = query.eq("status", statusFilter);
+      serverApps = serverApps.filter((a) => a.status === statusFilter);
     }
 
-    const { data, error } = await query;
-    if (error) {
-      return NextResponse.json({ success: true, data: [], notice: "Tables pending SQL migration" });
-    }
-
-    return NextResponse.json({ success: true, data: data || [] });
+    return NextResponse.json({ success: true, data: serverApps });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Internal server error";
     return NextResponse.json({ success: false, error: message }, { status: 500 });

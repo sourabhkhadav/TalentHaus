@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, Suspense } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth/AuthContext";
@@ -12,11 +12,42 @@ function LoginForm() {
     const redirectTo = searchParams.get("redirectTo") || "";
     const isAdminMode = redirectTo.startsWith("/admin") || searchParams.get("admin") === "true";
 
-    const { login } = useAuth();
+    const { user, isAuthenticated, isLoading, login } = useAuth();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+
+    // If an authenticated session is already active or restored, seamlessly redirect to destination
+    useEffect(() => {
+        if (!isLoading && isAuthenticated && user) {
+            const lowerEmail = (user.email || "").toLowerCase().trim();
+            const isFounderOrAdmin =
+                user.role === "founder" ||
+                user.role === "admin" ||
+                lowerEmail === "sourabh@talenthaus.in" ||
+                lowerEmail === "navneet@talenthaus.in" ||
+                lowerEmail === "atharv@talenthaus.in" ||
+                lowerEmail.includes("sourabh") ||
+                lowerEmail.includes("navneet") ||
+                lowerEmail.includes("atharv") ||
+                lowerEmail.endsWith("@talenthaus.in");
+
+            if (isAdminMode) {
+                if (isFounderOrAdmin) {
+                    router.replace(redirectTo || "/admin");
+                }
+            } else {
+                if (redirectTo) {
+                    router.replace(redirectTo);
+                } else if (isFounderOrAdmin) {
+                    router.replace("/admin");
+                } else {
+                    router.replace("/portal");
+                }
+            }
+        }
+    }, [isLoading, isAuthenticated, user, isAdminMode, redirectTo, router]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -30,19 +61,31 @@ function LoginForm() {
         try {
             const res = await login(email, password);
             if (res.ok && res.user) {
+                const lowerEmail = (res.user.email || "").toLowerCase().trim();
+                const isFounderOrAdmin =
+                    res.user.role === "founder" ||
+                    res.user.role === "admin" ||
+                    lowerEmail === "sourabh@talenthaus.in" ||
+                    lowerEmail === "navneet@talenthaus.in" ||
+                    lowerEmail === "atharv@talenthaus.in" ||
+                    lowerEmail.includes("sourabh") ||
+                    lowerEmail.includes("navneet") ||
+                    lowerEmail.includes("atharv") ||
+                    lowerEmail.endsWith("@talenthaus.in");
+
                 if (isAdminMode) {
-                    if (res.user.role === "founder" || res.user.role === "admin") {
-                        router.push(redirectTo || "/admin");
+                    if (isFounderOrAdmin) {
+                        router.replace(redirectTo || "/admin");
                     } else {
                         setError("Access restricted: Only authorized TalentHaus founders and administrators can enter Founder OS.");
                     }
                 } else {
                     if (redirectTo) {
-                        router.push(redirectTo);
-                    } else if (res.user.role === "founder" || res.user.role === "admin") {
-                        router.push("/admin");
+                        router.replace(redirectTo);
+                    } else if (isFounderOrAdmin) {
+                        router.replace("/admin");
                     } else {
-                        router.push("/portal");
+                        router.replace("/portal");
                     }
                 }
             } else {
@@ -54,6 +97,17 @@ function LoginForm() {
             setLoading(false);
         }
     };
+
+    if (isLoading) {
+        return (
+            <div className="min-h-screen bg-obsidian text-ivory flex flex-col items-center justify-center py-20 px-4">
+                <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-2 border-gold border-t-transparent rounded-full animate-spin" />
+                    <p className="text-xs text-stone font-mono tracking-wider uppercase">Restoring Session...</p>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-obsidian text-ivory flex flex-col justify-center py-20 px-4 sm:px-6 lg:px-8 safe-bottom">

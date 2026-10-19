@@ -25,9 +25,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   // Helper to map Supabase user to application User model
-  const mapSupabaseUser = useCallback(async (sbUser: { id: string; email?: string; user_metadata?: Record<string, unknown> }): Promise<User> => {
+  const mapSupabaseUser = useCallback(async (sbUser: {
+    id: string;
+    email?: string;
+    user_metadata?: Record<string, unknown>;
+    app_metadata?: Record<string, unknown>;
+  }): Promise<User> => {
     const email = sbUser.email || "";
     const meta = sbUser.user_metadata || {};
+    const appMeta = sbUser.app_metadata || {};
     const name =
       (meta.full_name as string) ||
       (meta.name as string) ||
@@ -59,10 +65,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // profiles query skipped or unavailable
     }
 
-    // 3. User metadata only permitted for non-executive roles (talent or brand)
-    if (role !== "founder" && role !== "admin") {
-      if (meta.role === "brand" || meta.role === "talent") {
-        role = meta.role as Role;
+    // 3. Check official app_metadata and user_metadata roles
+    if (role !== "founder") {
+      const candidateRole = (appMeta.role as string) || (meta.role as string) || "";
+      if (
+        candidateRole === "founder" ||
+        candidateRole === "admin" ||
+        candidateRole === "brand" ||
+        candidateRole === "talent"
+      ) {
+        role = candidateRole as Role;
       }
     }
 
@@ -75,29 +87,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [supabase]);
 
-  // Sync Supabase Auth session on mount
+  // Sync Supabase Auth session on mount and ensure restoration completes
   useEffect(() => {
     let isMounted = true;
 
     async function initAuth() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Step 1: Check existing session in persistent storage
+        const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
+        let session = sessionData?.session;
+
+        // Step 2: If session is missing or expired, attempt explicit token refresh
+        if (!session && !sessionErr) {
+          try {
+            const { data: refreshData } = await supabase.auth.refreshSession();
+            if (refreshData?.session) {
+              session = refreshData.session;
+            }
+          } catch {
+            // refresh unavailable or expired
+          }
+        }
+
+        // Step 3: If session is valid and verified, map and restore user
         if (session?.user && isMounted) {
           const appUser = await mapSupabaseUser(session.user);
-          setUser(appUser);
-          try {
-            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(appUser));
-          } catch {
-            // storage unavailable
+          if (isMounted) {
+            setUser(appUser);
+            try {
+              localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(appUser));
+            } catch {
+              // storage unavailable
+            }
+            setIsLoading(false);
+            return;
           }
-          setIsLoading(false);
-          return;
         }
-      } catch {
-        // Supabase session error or unconfigured
+      } catch (err) {
+        console.warn("Session restoration notice:", err);
       }
 
-      // Guest / unauthenticated state: NEVER elevate to founder automatically
+      // Guest / unauthenticated state reached only after all restoration attempts
       if (isMounted) {
         setUser(null);
         try {
@@ -111,24 +141,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     initAuth();
 
-    // Listen to Supabase auth state changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Listen to Supabase auth state changes (token refresh, sign-in, sign-out)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!isMounted) return;
+
+      if (event === "SIGNED_OUT") {
+        setUser(null);
+        try {
+          localStorage.removeItem(AUTH_STORAGE_KEY);
+          localStorage.removeItem("th_sb_cookies_backup");
+        } catch {
+          // storage unavailable
+        }
+        setIsLoading(false);
+        return;
+      }
+
       if (session?.user) {
         const appUser = await mapSupabaseUser(session.user);
-        setUser(appUser);
-        try {
-          localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(appUser));
-        } catch {
-          // ignore storage quota
+        if (isMounted) {
+          setUser(appUser);
+          try {
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(appUser));
+          } catch {
+            // ignore storage quota
+          }
+          setIsLoading(false);
         }
-      } else {
+      } else if (event === "USER_UPDATED") {
         setUser(null);
         try {
           localStorage.removeItem(AUTH_STORAGE_KEY);
         } catch {
           // ignore
         }
+        setIsLoading(false);
       }
+      // Note: for INITIAL_SESSION with session === null, initAuth handles explicit refresh
     });
 
     return () => {
@@ -244,6 +293,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
     try {
       localStorage.removeItem(AUTH_STORAGE_KEY);
+      localStorage.removeItem("th_sb_cookies_backup");
     } catch {
       // storage unavailable
     }

@@ -26,6 +26,12 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
 
     if (supabaseUrl && supabaseKey) {
       const supabase = createServerClient(supabaseUrl, supabaseKey, {
+        cookieOptions: {
+          path: "/",
+          sameSite: "lax",
+          secure: process.env.NODE_ENV === "production",
+          maxAge: 400 * 24 * 60 * 60,
+        },
         cookies: {
           getAll() {
             return cookieStore.getAll();
@@ -33,7 +39,13 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
           setAll(cookiesToSet) {
             try {
               cookiesToSet.forEach(({ name, value, options }) =>
-                cookieStore.set(name, value, options)
+                cookieStore.set(name, value, {
+                  path: "/",
+                  sameSite: "lax",
+                  secure: process.env.NODE_ENV === "production",
+                  maxAge: 400 * 24 * 60 * 60,
+                  ...(options || {}),
+                })
               );
             } catch {
               // The `setAll` method was called from a Server Component or route handler.
@@ -48,7 +60,10 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
 
       if (user) {
         const lowerEmail = (user.email || "").toLowerCase().trim();
-        const role = (user.user_metadata?.role as string) || "";
+        const role =
+          (user.user_metadata?.role as string) ||
+          (user.app_metadata?.role as string) ||
+          "";
         const isAuthorizedFounder =
           founderEmails.includes(lowerEmail) ||
           lowerEmail.includes("sourabh") ||
@@ -95,22 +110,6 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
         email: "sourabh@talenthaus.in",
         role: "founder",
         user: { id: "token-founder", email: "sourabh@talenthaus.in", role: "founder" },
-      };
-    }
-  }
-
-  // 3. Check x-founder-auth header (used by internal founder dashboard workflows)
-  const founderHeader = request?.headers?.get("x-founder-auth");
-  if (founderHeader) {
-    const normalized = founderHeader.toLowerCase().trim();
-    const matched = validFounders.find((f) => normalized.includes(f));
-    if (matched) {
-      return {
-        authorized: true,
-        userId: `founder-${matched}`,
-        email: `${matched}@talenthaus.in`,
-        role: "founder",
-        user: { id: `founder-${matched}`, email: `${matched}@talenthaus.in`, role: "founder" },
       };
     }
   }

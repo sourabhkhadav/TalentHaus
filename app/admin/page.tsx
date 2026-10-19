@@ -37,7 +37,10 @@ export default async function AdminPage() {
                 lowerEmail.includes("navneet") ||
                 lowerEmail.includes("atharv") ||
                 lowerEmail.endsWith("@talenthaus.in");
-            const userRole = (user.user_metadata?.role as string) || "";
+            const userRole =
+                (user.user_metadata?.role as string) ||
+                (user.app_metadata?.role as string) ||
+                "";
             const isFounderOrAdmin = isFounderEmail || userRole === "founder" || userRole === "admin";
 
             if (!isFounderOrAdmin) {

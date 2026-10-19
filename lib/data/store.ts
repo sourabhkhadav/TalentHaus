@@ -418,6 +418,31 @@ export function getAgencyRoster(): TalentProfile[] {
   return getFromStorage<TalentProfile[]>(STORAGE_KEYS.roster, staticRoster);
 }
 
+export async function addTalentToRosterAsync(
+  talent: TalentProfile,
+  founderIdentity?: string
+): Promise<{ success: boolean; data?: TalentProfile; error?: string }> {
+  const creatorToAdd: TalentProfile = {
+    ...talent,
+    featured: talent.featured !== false,
+    status: talent.status || "published",
+  };
+
+  const res = await createCreator(creatorToAdd, founderIdentity);
+  if (res.success && res.data) {
+    const current = getAgencyRoster();
+    const filtered = current.filter((t) => t.slug !== res.data!.slug);
+    const updated = [res.data, ...filtered];
+    saveToStorage(STORAGE_KEYS.roster, updated);
+    saveToStorage("th_agency_roster", updated);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    }
+    return { success: true, data: res.data };
+  }
+  return { success: false, error: res.error || "Failed to save creator." };
+}
+
 export function addTalentToRoster(talent: TalentProfile, founderIdentity?: string): TalentProfile[] {
   const creatorToAdd: TalentProfile = {
     ...talent,
@@ -431,11 +456,36 @@ export function addTalentToRoster(talent: TalentProfile, founderIdentity?: strin
   saveToStorage("th_agency_roster", updated);
 
   if (typeof window !== "undefined") {
-    createCreator(creatorToAdd, founderIdentity);
-    window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    createCreator(creatorToAdd, founderIdentity).then((res) => {
+      if (res.success && res.data) {
+        const synced = [res.data, ...current.filter((t) => t.slug !== res.data!.slug)];
+        saveToStorage(STORAGE_KEYS.roster, synced);
+        saveToStorage("th_agency_roster", synced);
+        window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: synced }));
+      }
+    });
   }
 
   return updated;
+}
+
+export async function updateTalentInRosterAsync(
+  slug: string,
+  updates: Partial<TalentProfile>,
+  founderIdentity?: string
+): Promise<{ success: boolean; data?: TalentProfile; error?: string }> {
+  const res = await updateCreator(slug, updates, founderIdentity);
+  if (res.success && res.data) {
+    const current = getAgencyRoster();
+    const updated = current.map((t) => (t.slug === slug ? { ...t, ...res.data } : t));
+    saveToStorage(STORAGE_KEYS.roster, updated);
+    saveToStorage("th_agency_roster", updated);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    }
+    return { success: true, data: res.data };
+  }
+  return { success: false, error: res.error || "Failed to update creator." };
 }
 
 export function updateTalentInRoster(slug: string, updates: Partial<TalentProfile>, founderIdentity?: string): TalentProfile[] {
@@ -445,11 +495,35 @@ export function updateTalentInRoster(slug: string, updates: Partial<TalentProfil
   saveToStorage("th_agency_roster", updated);
 
   if (typeof window !== "undefined") {
-    updateCreator(slug, updates, founderIdentity);
-    window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    updateCreator(slug, updates, founderIdentity).then((res) => {
+      if (res.success && res.data) {
+        const synced = current.map((t) => (t.slug === slug ? { ...t, ...res.data } : t));
+        saveToStorage(STORAGE_KEYS.roster, synced);
+        saveToStorage("th_agency_roster", synced);
+        window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: synced }));
+      }
+    });
   }
 
   return updated;
+}
+
+export async function deleteTalentFromRosterAsync(
+  slug: string,
+  founderIdentity?: string
+): Promise<{ success: boolean; error?: string }> {
+  const res = await deleteCreator(slug, founderIdentity);
+  if (res.success) {
+    const current = getAgencyRoster();
+    const updated = current.filter((t) => t.slug !== slug);
+    saveToStorage(STORAGE_KEYS.roster, updated);
+    saveToStorage("th_agency_roster", updated);
+    if (typeof window !== "undefined") {
+      window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    }
+    return { success: true };
+  }
+  return { success: false, error: res.error || "Failed to delete creator." };
 }
 
 export function deleteTalentFromRoster(slug: string, founderIdentity?: string): TalentProfile[] {
@@ -459,8 +533,11 @@ export function deleteTalentFromRoster(slug: string, founderIdentity?: string): 
   saveToStorage("th_agency_roster", updated);
 
   if (typeof window !== "undefined") {
-    deleteCreator(slug, founderIdentity);
-    window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+    deleteCreator(slug, founderIdentity).then((res) => {
+      if (res.success) {
+        window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: updated }));
+      }
+    });
   }
 
   return updated;

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { getCreatorsServer, getCreatorBySlugServer } from "@/lib/data/creatorsServer";
+import { getCreatorsServer, getCreatorBySlugServerAsync } from "@/lib/data/creatorsServer";
 import { ArrowUpRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,7 +17,7 @@ export async function generateStaticParams() {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const { slug } = await params;
-    const talent = getCreatorBySlugServer(slug);
+    const talent = await getCreatorBySlugServerAsync(slug);
     if (!talent) return { title: "Talent Not Found" };
     return {
         title: `${talent.name} — TalentHaus Roster`,
@@ -27,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 
 export default async function TalentProfilePage({ params }: Props) {
     const { slug } = await params;
-    const talent = getCreatorBySlugServer(slug);
+    const talent = await getCreatorBySlugServerAsync(slug);
     if (!talent) notFound();
 
     return (

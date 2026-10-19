@@ -53,6 +53,7 @@ export function EditCreatorModal({
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   // Initialize form state when creator changes
   useEffect(() => {
@@ -85,6 +86,7 @@ export function EditCreatorModal({
       setCoverFile(null);
       setAvatarError(null);
       setCoverError(null);
+      setSaveError(null);
       setSaveSuccess(false);
     }
   }, [creator, isOpen]);
@@ -200,6 +202,7 @@ export function EditCreatorModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
+    setSaveError(null);
     try {
       await onSave(creator.slug, formData);
       setSaveSuccess(true);
@@ -207,8 +210,9 @@ export function EditCreatorModal({
         setSaveSuccess(false);
         onClose();
       }, 1000);
-    } catch {
-      // error handled
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save creator updates.";
+      setSaveError(msg);
     } finally {
       setIsSaving(false);
     }
@@ -832,6 +836,11 @@ export function EditCreatorModal({
             </Link>
 
             <div className="flex items-center gap-3">
+              {saveError && (
+                <span className="text-xs text-rose-400 font-medium mr-2">
+                  {saveError}
+                </span>
+              )}
               <button
                 type="button"
                 onClick={onClose}

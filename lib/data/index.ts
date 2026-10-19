@@ -69,7 +69,7 @@ export function mapTalentToInfluencerRow(profile: Partial<TalentProfile>): Recor
 // ── CREATORS / ROSTER ──
 
 export async function getCreators(options?: { includeDrafts?: boolean }): Promise<TalentProfile[]> {
-  // 1. Client-side fetch from persistent API
+  // 1. Client-side fetch from persistent API (ensures shared DB state across all browsers)
   if (typeof window !== "undefined") {
     try {
       const res = await fetch(`/api/creators?includeDrafts=${options?.includeDrafts ? "true" : "false"}`);
@@ -84,7 +84,27 @@ export async function getCreators(options?: { includeDrafts?: boolean }): Promis
     }
   }
 
-  // 2. Server-side filesystem read from persistent roster-data.json
+  // 2. Server-side Supabase query
+  if (typeof window === "undefined" && isSupabaseConfigured()) {
+    try {
+      const supabase = createClient();
+      let query = supabase.from("influencers").select("*").order("featured", { ascending: false });
+
+      if (!options?.includeDrafts) {
+        query = query.eq("status", "published");
+      }
+
+      const { data, error } = await query;
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const mapped = data.map(mapInfluencerRowToTalent);
+        return mapped;
+      }
+    } catch {
+      // Supabase query failed or columns missing; fallback to server file store
+    }
+  }
+
+  // 3. Server-side filesystem read from persistent roster-data.json
   if (typeof window === "undefined") {
     try {
       const fs = await import("fs");
@@ -100,31 +120,14 @@ export async function getCreators(options?: { includeDrafts?: boolean }): Promis
         }
       }
     } catch {
-      // Fallback to Supabase / static roster
-    }
-  }
-
-  // 3. Supabase if configured
-  if (isSupabaseConfigured()) {
-    try {
-      const supabase = createClient();
-      let query = supabase.from("influencers").select("*").order("featured", { ascending: false });
-
-      if (!options?.includeDrafts) {
-        query = query.eq("status", "published");
-      }
-
-      const { data, error } = await query;
-      if (!error && data && data.length > 0) {
-        return data.map(mapInfluencerRowToTalent);
-      }
-    } catch {
-      // Supabase query failed or offline
+      // Fallback to static roster
     }
   }
 
   // 4. Graceful fallback to static roster
-  return roster;
+  return options?.includeDrafts
+    ? roster
+    : roster.filter((c) => c.status !== "draft" && c.status !== "archived");
 }
 
 export async function getFeaturedCreators(): Promise<TalentProfile[]> {

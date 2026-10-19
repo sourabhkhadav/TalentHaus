@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import fs from "fs";
 import path from "path";
 import { roster as defaultRoster, TalentProfile } from "@/content/roster";
 import { verifyServerFounderAuth } from "@/lib/auth/serverAuth";
+import { createClient } from "@/lib/supabase/server";
+import { mapInfluencerRowToTalent, mapTalentToInfluencerRow } from "@/lib/data";
 
 const DATA_FILE_PATH = path.join(process.cwd(), "content", "roster-data.json");
 
@@ -35,17 +38,67 @@ function saveCreatorsToFile(data: TalentProfile[]): void {
   }
 }
 
-// GET all creators
+// GET all creators (shared source of truth for admin and public)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const includeDrafts = searchParams.get("includeDrafts") === "true";
+    const includeDraftsParam = searchParams.get("includeDrafts") === "true";
 
-    const creators = readCreatorsFromFile();
+    // Only authorized founders can inspect drafts
+    let includeDrafts = false;
+    if (includeDraftsParam) {
+      const auth = await verifyServerFounderAuth(request);
+      includeDrafts = auth.authorized;
+    }
+
+    const fileCreators = readCreatorsFromFile();
+    let allCreators = fileCreators;
+
+    // 1. Fetch from Supabase influencers table
+    try {
+      const supabase = await createClient();
+      let query = supabase
+        .from("influencers")
+        .select("*")
+        .order("featured", { ascending: false });
+
+      if (!includeDrafts) {
+        query = query.eq("status", "published");
+      }
+
+      const { data, error } = await query;
+
+      if (!error && Array.isArray(data) && data.length > 0) {
+        const mappedSb = data.map((r) => mapInfluencerRowToTalent(r as Record<string, unknown>));
+
+        // Merge Supabase with file backup, Supabase taking priority
+        const seenSlugs = new Set<string>();
+        const merged: TalentProfile[] = [];
+
+        for (const item of mappedSb) {
+          if (!seenSlugs.has(item.slug)) {
+            seenSlugs.add(item.slug);
+            merged.push(item);
+          }
+        }
+
+        // Add file-only creators if any
+        for (const f of fileCreators) {
+          if (!seenSlugs.has(f.slug)) {
+            seenSlugs.add(f.slug);
+            merged.push(f);
+          }
+        }
+
+        allCreators = merged;
+      }
+    } catch {
+      // Retain fileCreators fallback
+    }
 
     const filtered = includeDrafts
-      ? creators
-      : creators.filter((c) => c.status !== "draft" && c.status !== "archived");
+      ? allCreators
+      : allCreators.filter((c) => c.status !== "draft" && c.status !== "archived");
 
     return NextResponse.json({ success: true, data: filtered });
   } catch (err: unknown) {
@@ -54,7 +107,7 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST create a new creator
+// POST create a new creator (authorized admin only)
 export async function POST(request: NextRequest) {
   try {
     const auth = await verifyServerFounderAuth(request);
@@ -70,33 +123,105 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const current = readCreatorsFromFile();
-    const existingIndex = current.findIndex((c) => c.slug === payload.slug);
+    const cleanSlug = payload.slug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
 
-    if (existingIndex >= 0) {
+    if (!cleanSlug) {
       return NextResponse.json(
-        { success: false, error: `A creator with slug "${payload.slug}" already exists.` },
+        { success: false, error: "A valid URL slug is required." },
+        { status: 400 }
+      );
+    }
+
+    const current = readCreatorsFromFile();
+
+    // Check duplicate slug in file store
+    if (current.some((c) => c.slug === cleanSlug)) {
+      return NextResponse.json(
+        { success: false, error: `A creator with slug "${cleanSlug}" already exists.` },
         { status: 409 }
       );
     }
 
+    // Check duplicate slug in Supabase
+    try {
+      const supabase = await createClient();
+      const { data: existingSb } = await supabase
+        .from("influencers")
+        .select("slug")
+        .eq("slug", cleanSlug)
+        .maybeSingle();
+
+      if (existingSb) {
+        return NextResponse.json(
+          { success: false, error: `A creator with slug "${cleanSlug}" already exists in the database.` },
+          { status: 409 }
+        );
+      }
+    } catch {
+      // proceed if query unsupported
+    }
+
     const newCreator: TalentProfile = {
       ...payload,
+      slug: cleanSlug,
+      name: payload.name.trim(),
       status: payload.status || "published",
       featured: payload.featured !== false,
       niche: payload.niche && payload.niche.length > 0 ? payload.niche : ["Lifestyle"],
       platforms: payload.platforms && payload.platforms.length > 0 ? payload.platforms : ["Instagram"],
-      location: payload.location || "India",
+      location: payload.location || "Indore, India",
       bio: payload.bio || `${payload.name} is represented exclusively by TalentHaus.`,
       shortBio: payload.shortBio || `TalentHaus represented creator · ${payload.niche?.[0] || "Lifestyle"}.`,
       audienceSize: payload.audienceSize || "Verified Roster",
       engagementRate: payload.engagementRate || "High Engagement",
-      image: payload.image || "",
-      coverImage: payload.coverImage || "",
+      image: payload.image || "/images/roster/placeholder.jpg",
+      coverImage: payload.coverImage || "/images/roster/placeholder-cover.jpg",
+      cloudinaryPublicId: payload.cloudinaryPublicId || undefined,
+      coverCloudinaryPublicId: payload.coverCloudinaryPublicId || undefined,
+      instagramHandle: payload.instagramHandle || undefined,
+      instagramFollowers: payload.instagramFollowers || undefined,
+      youtubeHandle: payload.youtubeHandle || undefined,
+      youtubeSubscribers: payload.youtubeSubscribers || undefined,
+      tiktokHandle: payload.tiktokHandle || undefined,
     };
 
-    const updated = [newCreator, ...current];
+    // 1. Insert into Supabase influencers table
+    try {
+      const supabase = await createClient();
+      const row = mapTalentToInfluencerRow(newCreator);
+      const { data: sbData, error: sbError } = await supabase
+        .from("influencers")
+        .insert([row])
+        .select()
+        .single();
+
+      if (sbError) {
+        console.warn("Supabase creator insert notice:", sbError.message);
+      } else if (sbData) {
+        const mapped = mapInfluencerRowToTalent(sbData as Record<string, unknown>);
+        newCreator.id = mapped.id;
+      }
+    } catch (sbEx) {
+      console.warn("Supabase creator insert exception:", sbEx);
+    }
+
+    // 2. Persist to shared server file store
+    const updated = [newCreator, ...current.filter((c) => c.slug !== cleanSlug)];
     saveCreatorsToFile(updated);
+
+    // 3. Revalidate affected Next.js routes
+    try {
+      revalidatePath("/");
+      revalidatePath("/roster");
+      revalidatePath(`/roster/${cleanSlug}`);
+    } catch {
+      // Revalidation error ignored
+    }
 
     return NextResponse.json({ success: true, data: newCreator });
   } catch (err: unknown) {
@@ -105,7 +230,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// PUT update an existing creator
+// PUT update an existing creator (authorized admin only)
 export async function PUT(request: NextRequest) {
   try {
     const auth = await verifyServerFounderAuth(request);
@@ -133,8 +258,34 @@ export async function PUT(request: NextRequest) {
       ...payload,
     };
 
+    // 1. Update in Supabase influencers table
+    try {
+      const supabase = await createClient();
+      const row = mapTalentToInfluencerRow(payload);
+      const { error: sbError } = await supabase
+        .from("influencers")
+        .update(row)
+        .eq("slug", payload.slug);
+
+      if (sbError) {
+        console.warn("Supabase creator update notice:", sbError.message);
+      }
+    } catch (sbEx) {
+      console.warn("Supabase creator update exception:", sbEx);
+    }
+
+    // 2. Update server file store
     current[index] = updatedCreator;
     saveCreatorsToFile(current);
+
+    // 3. Revalidate affected Next.js routes
+    try {
+      revalidatePath("/");
+      revalidatePath("/roster");
+      revalidatePath(`/roster/${payload.slug}`);
+    } catch {
+      // Revalidation error ignored
+    }
 
     return NextResponse.json({ success: true, data: updatedCreator });
   } catch (err: unknown) {
@@ -143,7 +294,7 @@ export async function PUT(request: NextRequest) {
   }
 }
 
-// DELETE a creator
+// DELETE a creator (authorized admin only)
 export async function DELETE(request: NextRequest) {
   try {
     const auth = await verifyServerFounderAuth(request);
@@ -165,7 +316,33 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: `Creator "${slug}" not found.` }, { status: 404 });
     }
 
+    // 1. Delete from Supabase influencers table
+    try {
+      const supabase = await createClient();
+      const { error: sbError } = await supabase
+        .from("influencers")
+        .delete()
+        .eq("slug", slug);
+
+      if (sbError) {
+        console.warn("Supabase creator delete notice:", sbError.message);
+      }
+    } catch (sbEx) {
+      console.warn("Supabase creator delete exception:", sbEx);
+    }
+
+    // 2. Persist to server file store
     saveCreatorsToFile(filtered);
+
+    // 3. Revalidate affected Next.js routes
+    try {
+      revalidatePath("/");
+      revalidatePath("/roster");
+      revalidatePath(`/roster/${slug}`);
+    } catch {
+      // Revalidation error ignored
+    }
+
     return NextResponse.json({ success: true, message: `Creator "${slug}" removed.` });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : "Failed to delete creator";

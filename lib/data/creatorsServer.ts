@@ -24,3 +24,19 @@ export function getCreatorBySlugServer(slug: string): TalentProfile | null {
   const normalized = decodeURIComponent(slug).toLowerCase().trim();
   return all.find((t) => t.slug.toLowerCase() === normalized) || null;
 }
+
+export async function getCreatorBySlugServerAsync(slug: string): Promise<TalentProfile | null> {
+  const normalized = decodeURIComponent(slug).toLowerCase().trim();
+
+  // 1. Try unified data layer which checks Supabase
+  try {
+    const { getCreatorBySlug } = await import("@/lib/data");
+    const talent = await getCreatorBySlug(normalized);
+    if (talent) return talent;
+  } catch {
+    // proceed to synchronous read
+  }
+
+  // 2. Synchronous file fallback
+  return getCreatorBySlugServer(normalized);
+}

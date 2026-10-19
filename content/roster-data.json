@@ -1,5 +1,32 @@
 [
   {
+    "name": "Amit Chandel",
+    "slug": "amit-chandel",
+    "location": "bhopal, India",
+    "audienceSize": "899k",
+    "engagementRate": "High Engagement",
+    "bio": "Amit Chandel is represented exclusively by TalentHaus.",
+    "shortBio": "Amit Chandel across platforms.",
+    "niche": [
+      "Entertainment"
+    ],
+    "platforms": [
+      "Instagram",
+      "YouTube"
+    ],
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792428447/talenthaus/creators/sstpoeqc3de0aeists0f.jpg",
+    "coverImage": "/images/roster/placeholder-cover.jpg",
+    "cloudinaryPublicId": "talenthaus/creators/sstpoeqc3de0aeists0f",
+    "featured": true,
+    "status": "published",
+    "instagramHandle": "amit__chandel_",
+    "instagramFollowers": "899K",
+    "youtubeHandle": "",
+    "youtubeSubscribers": "",
+    "tiktokHandle": "",
+    "coverCloudinaryPublicId": ""
+  },
+  {
     "name": "Najim Pathan",
     "slug": "najim-pathan",
     "location": "maharastra , INDIA",

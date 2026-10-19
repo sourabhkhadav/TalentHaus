@@ -30,9 +30,10 @@ import {
   updateTaskStatus,
   addTask,
   getAgencyRoster,
-  addTalentToRoster,
+  addTalentToRosterAsync,
+  updateTalentInRosterAsync,
   updateTalentInRoster,
-  deleteTalentFromRoster,
+  deleteTalentFromRosterAsync,
   getAgencyInquiries,
   getAgencyApplications,
 } from "@/lib/data/store";
@@ -46,6 +47,7 @@ import {
   Plus,
   Filter,
   CheckCircle,
+  AlertCircle,
   Clock,
   X,
   ExternalLink,
@@ -93,6 +95,12 @@ export function AdminClient() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [editingCreator, setEditingCreator] = useState<TalentProfile | null>(null);
+
+  // Talent state feedback
+  const [isSavingTalent, setIsSavingTalent] = useState(false);
+  const [saveTalentError, setSaveTalentError] = useState<string | null>(null);
+  const [saveTalentSuccess, setSaveTalentSuccess] = useState(false);
+  const [isSyncingRoster, setIsSyncingRoster] = useState(false);
 
   // Filters
   const [dealStatusFilter, setDealStatusFilter] = useState<string>("all");
@@ -258,7 +266,31 @@ export function AdminClient() {
     }
   }, [user?.name]);
 
-  // Load from shared store on mount & sync live Supabase submissions
+  // Sync roster from shared server API / Supabase
+  const syncRoster = useCallback(async () => {
+    setIsSyncingRoster(true);
+    try {
+      const res = await fetch("/api/creators?includeDrafts=true");
+      if (res.ok) {
+        const json = await res.json();
+        if (json.success && Array.isArray(json.data) && json.data.length > 0) {
+          setRoster(json.data);
+          try {
+            localStorage.setItem("th_agency_roster_v5", JSON.stringify(json.data));
+            localStorage.setItem("th_agency_roster", JSON.stringify(json.data));
+          } catch {
+            // ignore
+          }
+        }
+      }
+    } catch {
+      // Retain local roster
+    } finally {
+      setIsSyncingRoster(false);
+    }
+  }, []);
+
+  // Load from shared store on mount & sync live Supabase submissions and creators
   useEffect(() => {
     setDeals(getAgencyDeals());
     setExpenses(getAgencyExpenses());
@@ -267,10 +299,25 @@ export function AdminClient() {
     setInquiries(getAgencyInquiries());
     setApplications(getAgencyApplications());
 
+    syncRoster();
     syncSubmissions();
-    const interval = setInterval(syncSubmissions, 10000);
-    return () => clearInterval(interval);
-  }, [syncSubmissions]);
+    const interval = setInterval(() => {
+      syncSubmissions();
+      syncRoster();
+    }, 10000);
+
+    const handleRosterUpdated = () => {
+      syncRoster();
+    };
+    window.addEventListener("th-roster-updated", handleRosterUpdated);
+    window.addEventListener("storage", handleRosterUpdated);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("th-roster-updated", handleRosterUpdated);
+      window.removeEventListener("storage", handleRosterUpdated);
+    };
+  }, [syncSubmissions, syncRoster]);
 
   // Handlers
   const handleDealStatusChange = (id: string, status: DealStatus) => {
@@ -468,22 +515,34 @@ export function AdminClient() {
     }
   };
 
-  const handleDeleteTalent = (slug: string, name: string) => {
+  const handleDeleteTalent = async (slug: string, name: string) => {
     if (window.confirm(`Are you sure you want to remove ${name} from the agency roster?`)) {
-      const updated = deleteTalentFromRoster(slug, user?.name?.toLowerCase() || "sourabh");
-      setRoster(updated);
+      const res = await deleteTalentFromRosterAsync(slug, user?.name?.toLowerCase() || "sourabh");
+      if (res.success) {
+        setRoster((prev) => prev.filter((t) => t.slug !== slug));
+        await syncRoster();
+      } else {
+        alert(res.error || "Failed to delete creator.");
+      }
     }
   };
 
-  const handleToggleTalentStatus = (slug: string, currentStatus?: string) => {
+  const handleToggleTalentStatus = async (slug: string, currentStatus?: string) => {
     const nextStatus = currentStatus === "draft" ? "published" : "draft";
-    const updated = updateTalentInRoster(slug, { status: nextStatus }, user?.name?.toLowerCase() || "sourabh");
-    setRoster(updated);
+    const res = await updateTalentInRosterAsync(slug, { status: nextStatus }, user?.name?.toLowerCase() || "sourabh");
+    if (res.success && res.data) {
+      setRoster((prev) => prev.map((t) => (t.slug === slug ? res.data! : t)));
+      await syncRoster();
+    }
   };
 
-  const handleToggleTalentFeatured = (slug: string, currentFeatured?: boolean) => {
-    const updated = updateTalentInRoster(slug, { featured: !currentFeatured }, user?.name?.toLowerCase() || "sourabh");
-    setRoster(updated);
+  const handleToggleTalentFeatured = async (slug: string, currentFeatured?: boolean) => {
+    const nextFeatured = !currentFeatured;
+    const res = await updateTalentInRosterAsync(slug, { featured: nextFeatured }, user?.name?.toLowerCase() || "sourabh");
+    if (res.success && res.data) {
+      setRoster((prev) => prev.map((t) => (t.slug === slug ? res.data! : t)));
+      await syncRoster();
+    }
   };
 
   const handleCreateDeal = (e: React.FormEvent) => {
@@ -541,21 +600,47 @@ export function AdminClient() {
     });
   };
 
-  const handleCreateTalent = (e: React.FormEvent) => {
+  const handleCreateTalent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newTalent.name || !newTalent.slug) return;
+    setSaveTalentError(null);
+    setSaveTalentSuccess(false);
+
+    if (!newTalent.name.trim() || !newTalent.slug.trim()) {
+      setSaveTalentError("Creator name and URL slug are required.");
+      return;
+    }
+
+    const cleanSlug = newTalent.slug
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9-]/g, "-")
+      .replace(/-+/g, "-")
+      .replace(/^-|-$/g, "");
+
+    if (!cleanSlug) {
+      setSaveTalentError("Please enter a valid URL slug.");
+      return;
+    }
+
+    if (roster.some((c) => c.slug === cleanSlug)) {
+      setSaveTalentError(`A creator with slug "${cleanSlug}" already exists in the roster.`);
+      return;
+    }
+
+    setIsSavingTalent(true);
+
     const profile: TalentProfile = {
-      name: newTalent.name,
-      slug: newTalent.slug.toLowerCase().trim().replace(/\s+/g, "-"),
-      location: newTalent.location,
-      audienceSize: newTalent.audienceSize,
-      engagementRate: newTalent.engagementRate,
-      bio: newTalent.bio || "Newly represented creator with exceptional audience engagement.",
+      name: newTalent.name.trim(),
+      slug: cleanSlug,
+      location: newTalent.location || "Indore, India",
+      audienceSize: newTalent.audienceSize || "Verified Roster",
+      engagementRate: newTalent.engagementRate || "High Engagement",
+      bio: newTalent.bio || `${newTalent.name} is represented exclusively by TalentHaus.`,
       shortBio: newTalent.shortBio || `${newTalent.name} across platforms.`,
       niche: newTalent.niche as TalentProfile["niche"],
       platforms: newTalent.platforms as TalentProfile["platforms"],
-      image: newTalent.image,
-      coverImage: newTalent.coverImage,
+      image: newTalent.image || "/images/roster/placeholder.jpg",
+      coverImage: newTalent.coverImage || "/images/roster/placeholder-cover.jpg",
       cloudinaryPublicId: newTalent.cloudinaryPublicId || undefined,
       coverCloudinaryPublicId: newTalent.coverCloudinaryPublicId || undefined,
       featured: newTalent.featured !== false,
@@ -565,11 +650,49 @@ export function AdminClient() {
       youtubeHandle: newTalent.youtubeHandle || undefined,
       youtubeSubscribers: newTalent.youtubeSubscribers || undefined,
     };
-    const updated = addTalentToRoster(profile, user?.name?.toLowerCase() || "sourabh");
-    setRoster(updated);
-    setShowAddTalent(false);
-    setAvatarPreview(null);
-    setCoverPreview(null);
+
+    try {
+      const res = await addTalentToRosterAsync(profile, user?.name?.toLowerCase() || "sourabh");
+      if (res.success && res.data) {
+        setSaveTalentSuccess(true);
+        setRoster((prev) => [res.data!, ...prev.filter((c) => c.slug !== cleanSlug)]);
+        await syncRoster();
+
+        setTimeout(() => {
+          setShowAddTalent(false);
+          setSaveTalentSuccess(false);
+          setAvatarPreview(null);
+          setCoverPreview(null);
+          setNewTalent({
+            name: "",
+            slug: "",
+            location: "Indore, India",
+            audienceSize: "500K",
+            engagementRate: "6.5%",
+            bio: "",
+            shortBio: "",
+            niche: ["Fashion"],
+            platforms: ["Instagram", "YouTube"],
+            featured: true,
+            instagramHandle: "",
+            instagramFollowers: "",
+            youtubeHandle: "",
+            youtubeSubscribers: "",
+            image: "/images/roster/placeholder.jpg",
+            coverImage: "/images/roster/placeholder-cover.jpg",
+            cloudinaryPublicId: "",
+            coverCloudinaryPublicId: "",
+          });
+        }, 800);
+      } else {
+        setSaveTalentError(res.error || "Failed to save creator to database.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save creator profile.";
+      setSaveTalentError(msg);
+    } finally {
+      setIsSavingTalent(false);
+    }
   };
 
   // Filtered views
@@ -1323,7 +1446,14 @@ export function AdminClient() {
             <div className="mt-8 space-y-6 animate-fadeIn">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div>
-                  <h2 className="font-display text-2xl text-ivory">Influencer & Roster Management</h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="font-display text-2xl text-ivory">Influencer & Roster Management</h2>
+                    {isSyncingRoster && (
+                      <span className="text-[10px] text-gold/70 font-mono animate-pulse">
+                        Syncing...
+                      </span>
+                    )}
+                  </div>
                   <p className="text-stone text-xs mt-0.5">
                     Agency talent directory with public website sync.
                   </p>
@@ -1892,7 +2022,11 @@ export function AdminClient() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowAddTalent(false)}
+                  onClick={() => {
+                    setShowAddTalent(false);
+                    setSaveTalentError(null);
+                    setSaveTalentSuccess(false);
+                  }}
                   className="w-11 h-11 flex items-center justify-center text-stone hover:text-ivory"
                 >
                   <X size={20} />
@@ -2137,19 +2271,49 @@ export function AdminClient() {
                   </div>
                 </div>
 
+                {saveTalentError && (
+                  <div className="p-3.5 rounded-xl bg-rose-950/60 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
+                    <AlertCircle size={15} className="shrink-0 text-rose-400" />
+                    <span>{saveTalentError}</span>
+                  </div>
+                )}
+
+                {saveTalentSuccess && (
+                  <div className="p-3.5 rounded-xl bg-emerald-950/60 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
+                    <CheckCircle size={15} className="shrink-0 text-emerald-400" />
+                    <span>Creator saved successfully and synchronized across TalentHaus!</span>
+                  </div>
+                )}
+
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-gold/15">
                   <button
                     type="button"
-                    onClick={() => setShowAddTalent(false)}
-                    className="px-4 py-2.5 rounded-lg border border-gold/20 text-stone hover:text-ivory text-xs min-h-[44px]"
+                    disabled={isSavingTalent}
+                    onClick={() => {
+                      setShowAddTalent(false);
+                      setSaveTalentError(null);
+                      setSaveTalentSuccess(false);
+                    }}
+                    className="px-4 py-2.5 rounded-lg border border-gold/20 text-stone hover:text-ivory text-xs min-h-[44px] disabled:opacity-50"
                   >
                     Cancel
                   </button>
                   <button
                     type="submit"
-                    className="px-5 py-2.5 rounded-lg bg-gold text-obsidian text-xs font-semibold uppercase tracking-wider hover:bg-gold/90 transition-colors min-h-[44px]"
+                    disabled={isSavingTalent}
+                    className="px-5 py-2.5 rounded-lg bg-gold text-obsidian text-xs font-semibold uppercase tracking-wider hover:bg-gold/90 transition-colors min-h-[44px] flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Save Creator
+                    {isSavingTalent ? (
+                      <>
+                        <Clock size={14} className="animate-spin" /> Saving...
+                      </>
+                    ) : saveTalentSuccess ? (
+                      <>
+                        <CheckCircle size={14} /> Saved!
+                      </>
+                    ) : (
+                      "Save Creator"
+                    )}
                   </button>
                 </div>
               </form>
@@ -2208,9 +2372,14 @@ export function AdminClient() {
             isOpen={!!editingCreator}
             onClose={() => setEditingCreator(null)}
             founderIdentity={user?.name?.toLowerCase() || "sourabh"}
-            onSave={(slug, updates) => {
-              const updated = updateTalentInRoster(slug, updates, user?.name?.toLowerCase() || "sourabh");
-              setRoster(updated);
+            onSave={async (slug, updates) => {
+              const res = await updateTalentInRosterAsync(slug, updates, user?.name?.toLowerCase() || "sourabh");
+              if (res.success && res.data) {
+                setRoster((prev) => prev.map((t) => (t.slug === slug ? res.data! : t)));
+                await syncRoster();
+              } else {
+                throw new Error(res.error || "Failed to update creator profile.");
+              }
             }}
           />
         )}

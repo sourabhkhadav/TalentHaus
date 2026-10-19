@@ -10,10 +10,8 @@ import {
   X,
   Upload,
   Check,
-  AlertCircle,
   RefreshCw,
   ImageIcon,
-  Sparkles,
   ExternalLink,
   Instagram,
   Youtube,
@@ -42,13 +40,13 @@ export function EditCreatorModal({
   const [activeTab, setActiveTab] = useState<"general" | "bio" | "social" | "media">("general");
 
   // Avatar upload state
-  const [avatarFile, setAvatarFile] = useState<File | null>(null);
+  const [_avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
 
   // Cover upload state
-  const [coverFile, setCoverFile] = useState<File | null>(null);
+  const [_coverFile, setCoverFile] = useState<File | null>(null);
   const [coverPreview, setCoverPreview] = useState<string | null>(null);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [coverError, setCoverError] = useState<string | null>(null);

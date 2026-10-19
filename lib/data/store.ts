@@ -19,7 +19,6 @@ import { roster as staticRoster, TalentProfile } from "@/content/roster";
 import { createClient } from "@/lib/supabase/client";
 import {
   mapInfluencerRowToTalent,
-  mapTalentToInfluencerRow,
   createCreator,
   updateCreator,
   deleteCreator,

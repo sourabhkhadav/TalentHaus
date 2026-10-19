@@ -246,4 +246,15 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Hide Next.js Development Indicator Badge */
+  nextjs-portal,
+  [data-nextjs-dev-tools],
+  #nextjs-dev-tools,
+  #__next-build-watcher {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+  }
 }

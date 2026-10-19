@@ -13,6 +13,7 @@ const cspHeader = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   poweredByHeader: false,
   images: {
     formats: ["image/avif", "image/webp"],

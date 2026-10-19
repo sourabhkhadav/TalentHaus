@@ -86,6 +86,24 @@ async function testSuite() {
   const teamJson = await teamRes.json();
   assert(Array.isArray(teamJson.data) && teamJson.data.length > 0, `Public team returns array of founders (${teamJson.data?.length || 0} founders)`);
 
+  // Public POST applications form accessibility check (must not require Founder OS auth)
+  const appRes = await fetch(`${BASE_URL}/api/applications`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      fullName: "Test Creator",
+      email: "test@example.com",
+      phone: "+91 9999999999",
+      location: "Mumbai, India",
+      primaryPlatform: "Instagram",
+      handle: "@testcreator",
+      audienceSize: "50K - 100K",
+      niche: ["Fashion"],
+      bio: "This is a valid test creator biography for automated testing.",
+    }),
+  });
+  assert(appRes.status !== 401 && appRes.status !== 403, `Public POST /api/applications does not require Founder OS auth (HTTP ${appRes.status})`);
+
   console.log(`\n🔍 [SUITE 4] Testing Security Headers and Content Security Policy...`);
   const homeRes = await fetch(`${BASE_URL}/`);
   const hsts = homeRes.headers.get("strict-transport-security");

@@ -34,7 +34,7 @@ export async function updateSession(request: NextRequest) {
     (path.startsWith("/api/upload") && request.method !== "HEAD") ||
     (path.startsWith("/api/team") && request.method !== "GET") ||
     (path.startsWith("/api/creators") && request.method !== "GET") ||
-    path.startsWith("/api/applications") ||
+    (path.startsWith("/api/applications") && (request.method !== "POST" || path.includes("/status") || path.includes("/signed-url"))) ||
     (path.startsWith("/api/contact") && (request.method !== "POST" || path.includes("/status")));
 
   // Fail closed if Supabase credentials are missing

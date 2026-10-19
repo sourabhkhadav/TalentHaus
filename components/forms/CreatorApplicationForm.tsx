@@ -68,6 +68,7 @@ export function CreatorApplicationForm() {
 
       if (res.ok && resJson.success) {
         addApplication({
+          id: resJson.id,
           fullName: data.fullName,
           email: data.email,
           phone: data.phone,

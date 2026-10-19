@@ -71,6 +71,7 @@ export function ContactClient() {
             const data = await res.json();
             if (res.ok && data.success) {
                 addInquiry({
+                    id: data.id,
                     brandName: brandName.trim(),
                     contactName: contactName.trim(),
                     email: email.trim(),

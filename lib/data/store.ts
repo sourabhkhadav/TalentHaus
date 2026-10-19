@@ -336,63 +336,19 @@ export function getAgencyInquiries(): InboundInquiry[] {
   return getFromStorage<InboundInquiry[]>(STORAGE_KEYS.inquiries, INITIAL_INQUIRIES);
 }
 
-export function addInquiry(inquiry: Omit<InboundInquiry, "id" | "date" | "status">): InboundInquiry {
+export function addInquiry(
+  inquiry: Omit<InboundInquiry, "id" | "date" | "status"> & { id?: string; status?: InboundInquiry["status"] }
+): InboundInquiry {
   const current = getAgencyInquiries();
-  const tempId = `enq_${Date.now()}`;
+  const id = inquiry.id || `enq_${Date.now()}`;
   const newInquiry: InboundInquiry = {
     ...inquiry,
-    id: tempId,
+    id,
     date: new Date().toISOString().split("T")[0],
-    status: "pending",
+    status: inquiry.status || "new",
   };
-  const updated = [newInquiry, ...current];
+  const updated = [newInquiry, ...current.filter((i) => i.id !== id)];
   saveToStorage(STORAGE_KEYS.inquiries, updated);
-
-  if (typeof window !== "undefined") {
-    const supabase = createClient();
-    supabase
-      .from("contact_submissions")
-      .insert([
-        {
-          brand_name: inquiry.brandName,
-          contact_name: inquiry.contactName,
-          email: inquiry.email,
-          phone: inquiry.phone,
-          budget: inquiry.budget,
-          timeline: inquiry.timeline,
-          services: inquiry.services || [],
-          message: inquiry.message,
-          status: "new",
-        },
-      ])
-      .select()
-      .then(({ data, error }) => {
-        if (error && error.code === "PGRST205") {
-          supabase.from("inbound_inquiries").insert([
-            {
-              brand_name: inquiry.brandName,
-              contact_name: inquiry.contactName,
-              email: inquiry.email,
-              phone: inquiry.phone,
-              budget: inquiry.budget,
-              timeline: inquiry.timeline,
-              services: inquiry.services || [],
-              message: inquiry.message,
-              status: "new",
-            },
-          ]).select().then(({ data: altData }) => {
-            if (altData && altData[0]) {
-              const synced = updated.map((i) => (i.id === tempId ? mapInquiryRow(altData[0]) : i));
-              saveToStorage(STORAGE_KEYS.inquiries, synced);
-            }
-          });
-        } else if (data && data[0]) {
-          const synced = updated.map((i) => (i.id === tempId ? mapInquiryRow(data[0]) : i));
-          saveToStorage(STORAGE_KEYS.inquiries, synced);
-        }
-      });
-  }
-
   return newInquiry;
 }
 
@@ -425,46 +381,19 @@ export function getAgencyApplications(): CreatorApplication[] {
   return getFromStorage<CreatorApplication[]>(STORAGE_KEYS.applications, INITIAL_APPLICATIONS);
 }
 
-export function addApplication(app: Omit<CreatorApplication, "id" | "date" | "status">): CreatorApplication {
+export function addApplication(
+  app: Omit<CreatorApplication, "id" | "date" | "status"> & { id?: string; status?: CreatorApplication["status"] }
+): CreatorApplication {
   const current = getAgencyApplications();
-  const tempId = `app_${Date.now()}`;
+  const id = app.id || `app_${Date.now()}`;
   const newApp: CreatorApplication = {
     ...app,
-    id: tempId,
+    id,
     date: new Date().toISOString().split("T")[0],
-    status: "pending",
+    status: app.status || "pending",
   };
-  const updated = [newApp, ...current];
+  const updated = [newApp, ...current.filter((a) => a.id !== id)];
   saveToStorage(STORAGE_KEYS.applications, updated);
-
-  if (typeof window !== "undefined") {
-    const supabase = createClient();
-    supabase
-      .from("creator_applications")
-      .insert([
-        {
-          full_name: app.fullName,
-          email: app.email,
-          phone: app.phone,
-          location: app.location,
-          primary_platform: app.primaryPlatform,
-          handle: app.handle,
-          audience_size: app.audienceSize,
-          niche: app.niche,
-          bio: app.bio,
-          portfolio_url: app.portfolioUrl,
-          status: "pending",
-        },
-      ])
-      .select()
-      .then(({ data }) => {
-        if (data && data[0]) {
-          const synced = updated.map((a) => (a.id === tempId ? mapApplicationRow(data[0]) : a));
-          saveToStorage(STORAGE_KEYS.applications, synced);
-        }
-      });
-  }
-
   return newApp;
 }
 
@@ -653,7 +582,7 @@ export function useStore() {
     applications,
     roster,
     isSyncing,
-    addInquiry: (inq: Omit<InboundInquiry, "id" | "date" | "status">) => {
+    addInquiry: (inq: Omit<InboundInquiry, "id" | "date" | "status"> & { id?: string; status?: InboundInquiry["status"] }) => {
       const created = addInquiry(inq);
       setInquiries(getAgencyInquiries());
       return created;
@@ -698,7 +627,7 @@ export function useStore() {
       setTasks(updated);
       return updated;
     },
-    addApplication: (app: Omit<CreatorApplication, "id" | "date" | "status">) => {
+    addApplication: (app: Omit<CreatorApplication, "id" | "date" | "status"> & { id?: string; status?: CreatorApplication["status"] }) => {
       const created = addApplication(app);
       setApplications(getAgencyApplications());
       return created;

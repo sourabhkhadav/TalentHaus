@@ -91,6 +91,11 @@ export async function GET(request: NextRequest) {
         }
 
         allCreators = merged;
+
+        // Keep local file store synchronized with live database
+        if (merged.length !== fileCreators.length) {
+          saveCreatorsToFile(merged);
+        }
       }
     } catch {
       // Retain fileCreators fallback
@@ -110,15 +115,9 @@ export async function GET(request: NextRequest) {
 // POST create a new creator (authorized admin only)
 export async function POST(request: NextRequest) {
   try {
-    const founderHeader = request.headers.get("x-founder-auth") || "";
-    const validFounders = ["sourabh", "navneet", "atharv"];
-    const hasFounderHeader = validFounders.some((f) => founderHeader.toLowerCase().includes(f));
-
-    if (!hasFounderHeader) {
-      const auth = await verifyServerFounderAuth(request);
-      if (!auth.authorized) {
-        return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
-      }
+    const auth = await verifyServerFounderAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
     }
 
     const payload = (await request.json()) as TalentProfile;
@@ -239,15 +238,9 @@ export async function POST(request: NextRequest) {
 // PUT update an existing creator (authorized admin only)
 export async function PUT(request: NextRequest) {
   try {
-    const founderHeader = request.headers.get("x-founder-auth") || "";
-    const validFounders = ["sourabh", "navneet", "atharv"];
-    const hasFounderHeader = validFounders.some((f) => founderHeader.toLowerCase().includes(f));
-
-    if (!hasFounderHeader) {
-      const auth = await verifyServerFounderAuth(request);
-      if (!auth.authorized) {
-        return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
-      }
+    const auth = await verifyServerFounderAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
     }
 
     const payload = (await request.json()) as Partial<TalentProfile> & { slug: string };
@@ -258,39 +251,47 @@ export async function PUT(request: NextRequest) {
     const current = readCreatorsFromFile();
     const index = current.findIndex((c) => c.slug === payload.slug);
 
-    if (index === -1) {
-      return NextResponse.json(
-        { success: false, error: `Creator with slug "${payload.slug}" not found.` },
-        { status: 404 }
-      );
-    }
-
-    const updatedCreator: TalentProfile = {
-      ...current[index],
-      ...payload,
-    };
+    let updatedCreator: TalentProfile | null = null;
+    let foundInSb = false;
 
     // 1. Update in Supabase influencers table
     try {
       const supabase = await createClient();
       const row = mapTalentToInfluencerRow(payload);
-      const { error: sbError } = await supabase
+      const { data: sbData, error: sbError } = await supabase
         .from("influencers")
         .update(row)
-        .eq("slug", payload.slug);
+        .eq("slug", payload.slug)
+        .select()
+        .single();
 
-      if (sbError) {
-        console.warn("Supabase creator update notice:", sbError.message);
+      if (!sbError && sbData) {
+        foundInSb = true;
+        updatedCreator = mapInfluencerRowToTalent(sbData as Record<string, unknown>);
       }
     } catch (sbEx) {
       console.warn("Supabase creator update exception:", sbEx);
     }
 
-    // 2. Update server file store
-    current[index] = updatedCreator;
-    saveCreatorsToFile(current);
+    if (index !== -1) {
+      updatedCreator = {
+        ...current[index],
+        ...payload,
+        ...(updatedCreator || {}),
+      };
+      current[index] = updatedCreator;
+      saveCreatorsToFile(current);
+    } else if (foundInSb && updatedCreator) {
+      current.unshift(updatedCreator);
+      saveCreatorsToFile(current);
+    } else {
+      return NextResponse.json(
+        { success: false, error: `Creator with slug "${payload.slug}" not found in database or file store.` },
+        { status: 404 }
+      );
+    }
 
-    // 3. Revalidate affected Next.js routes
+    // Revalidate affected Next.js routes
     try {
       revalidatePath("/");
       revalidatePath("/roster");
@@ -309,17 +310,9 @@ export async function PUT(request: NextRequest) {
 // DELETE a creator (authorized admin only)
 export async function DELETE(request: NextRequest) {
   try {
-    // Check x-founder-auth header first (sent by admin client)
-    const founderHeader = request.headers.get("x-founder-auth") || "";
-    const validFounders = ["sourabh", "navneet", "atharv"];
-    const hasFounderHeader = validFounders.some((f) => founderHeader.toLowerCase().includes(f));
-
-    if (!hasFounderHeader) {
-      // Fallback: check Supabase session
-      const auth = await verifyServerFounderAuth(request);
-      if (!auth.authorized) {
-        return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
-      }
+    const auth = await verifyServerFounderAuth(request);
+    if (!auth.authorized) {
+      return NextResponse.json({ success: false, error: auth.error || "Unauthorized" }, { status: auth.status || 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -329,30 +322,40 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing slug parameter" }, { status: 400 });
     }
 
-    const current = readCreatorsFromFile();
-    const filtered = current.filter((c) => c.slug !== slug);
-
-    if (filtered.length === current.length) {
-      return NextResponse.json({ success: false, error: `Creator "${slug}" not found.` }, { status: 404 });
-    }
+    let deletedFromSb = false;
+    let deletedFromFile = false;
 
     // 1. Delete from Supabase influencers table
     try {
       const supabase = await createClient();
-      const { error: sbError } = await supabase
+      const { data, error: sbError } = await supabase
         .from("influencers")
         .delete()
-        .eq("slug", slug);
+        .eq("slug", slug)
+        .select("slug");
 
-      if (sbError) {
-        console.warn("Supabase creator delete notice:", sbError.message);
+      if (!sbError && Array.isArray(data) && data.length > 0) {
+        deletedFromSb = true;
       }
     } catch (sbEx) {
-      console.warn("Supabase creator delete exception:", sbEx);
+      console.warn("Supabase creator delete notice:", sbEx);
     }
 
-    // 2. Persist to server file store
-    saveCreatorsToFile(filtered);
+    // 2. Delete from server file store
+    const current = readCreatorsFromFile();
+    const filtered = current.filter((c) => c.slug !== slug);
+    if (filtered.length !== current.length) {
+      deletedFromFile = true;
+      saveCreatorsToFile(filtered);
+    }
+
+    // If neither Supabase nor the file had this creator
+    if (!deletedFromSb && !deletedFromFile) {
+      return NextResponse.json(
+        { success: false, error: `Creator "${slug}" not found in database or file store.` },
+        { status: 404 }
+      );
+    }
 
     // 3. Revalidate affected Next.js routes
     try {

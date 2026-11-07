@@ -144,17 +144,36 @@ export async function getCreatorBySlug(slug: string): Promise<TalentProfile | nu
 }
 
 // Creator Mutations
+async function getAuthHeaders(founderIdentity: string = "sourabh"): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "x-founder-auth": founderIdentity,
+  };
+  if (typeof window !== "undefined") {
+    try {
+      const supabase = createClient();
+      const { data } = await supabase.auth.getSession();
+      if (data?.session?.access_token) {
+        headers["Authorization"] = `Bearer ${data.session.access_token}`;
+      }
+    } catch {
+      // session inspection fallback
+    }
+  }
+  return headers;
+}
+
 export async function createCreator(
   profile: Partial<TalentProfile> & { name: string; slug: string },
   founderIdentity: string = "sourabh"
 ): Promise<{ success: boolean; data?: TalentProfile; error?: string }> {
   try {
     if (typeof window !== "undefined") {
+      const authHeaders = await getAuthHeaders(founderIdentity);
       const res = await fetch("/api/creators", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "x-founder-auth": founderIdentity,
+          ...authHeaders,
         },
         body: JSON.stringify(profile),
       });
@@ -188,11 +207,12 @@ export async function updateCreator(
 ): Promise<{ success: boolean; data?: TalentProfile; error?: string }> {
   try {
     if (typeof window !== "undefined") {
+      const authHeaders = await getAuthHeaders(founderIdentity);
       const res = await fetch("/api/creators", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
-          "x-founder-auth": founderIdentity,
+          ...authHeaders,
         },
         body: JSON.stringify({ slug, ...updates }),
       });
@@ -230,14 +250,20 @@ export async function deleteCreator(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     if (typeof window !== "undefined") {
+      const authHeaders = await getAuthHeaders(founderIdentity);
       const res = await fetch(`/api/creators?slug=${encodeURIComponent(slug)}`, {
         method: "DELETE",
-        headers: {
-          "x-founder-auth": founderIdentity,
-        },
+        headers: authHeaders,
       });
       const data = await res.json();
       if (res.ok && data.success) {
+        // Also ensure client-side Supabase deletes the row if client Supabase is connected
+        try {
+          const supabase = createClient();
+          await supabase.from("influencers").delete().eq("slug", slug);
+        } catch {
+          // ignore
+        }
         window.dispatchEvent(new CustomEvent("th-roster-updated", { detail: { slug } }));
         return { success: true };
       }

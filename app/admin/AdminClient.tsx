@@ -62,6 +62,7 @@ import {
   FileText,
   LogOut,
   Image as ImageIcon,
+  Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import { InquiriesTab } from "@/components/admin/InquiriesTab";
@@ -96,6 +97,8 @@ export function AdminClient() {
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [editingCreator, setEditingCreator] = useState<TalentProfile | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<{ slug: string; name: string } | null>(null);
+  const [isDeletingTalent, setIsDeletingTalent] = useState(false);
+  const [deleteTalentError, setDeleteTalentError] = useState<string | null>(null);
 
   // Talent state feedback
   const [isSavingTalent, setIsSavingTalent] = useState(false);
@@ -517,17 +520,28 @@ export function AdminClient() {
   };
 
   const handleDeleteTalent = (slug: string, name: string) => {
+    setDeleteTalentError(null);
     setConfirmDelete({ slug, name });
   };
 
   const handleConfirmDelete = async () => {
-    if (!confirmDelete) return;
+    if (!confirmDelete || isDeletingTalent) return;
     const { slug } = confirmDelete;
-    setConfirmDelete(null);
-    const res = await deleteTalentFromRosterAsync(slug, user?.name?.toLowerCase() || "sourabh");
-    if (res.success) {
-      setRoster((prev) => prev.filter((t) => t.slug !== slug));
-      await syncRoster();
+    setIsDeletingTalent(true);
+    setDeleteTalentError(null);
+    try {
+      const res = await deleteTalentFromRosterAsync(slug, user?.name?.toLowerCase() || "sourabh");
+      if (res.success) {
+        setRoster((prev) => prev.filter((t) => t.slug !== slug));
+        setConfirmDelete(null);
+        await syncRoster();
+      } else {
+        setDeleteTalentError(res.error || "Failed to delete creator.");
+      }
+    } catch (err: unknown) {
+      setDeleteTalentError(err instanceof Error ? err.message : "Error deleting creator.");
+    } finally {
+      setIsDeletingTalent(false);
     }
   };
 
@@ -2374,10 +2388,47 @@ export function AdminClient() {
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-obsidian/80 backdrop-blur-sm">
             <div className="bg-plum border border-rose-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
               <h3 className="font-display text-ivory text-xl mb-2">Remove Creator?</h3>
-              <p className="text-stone text-xs mb-6">This will permanently remove <strong className="text-ivory">{confirmDelete.name}</strong> from the roster.</p>
+              <p className="text-stone text-xs mb-4">
+                This will permanently remove <strong className="text-ivory">{confirmDelete.name}</strong> from the roster.
+              </p>
+
+              {deleteTalentError && (
+                <div className="p-3 mb-4 rounded-xl bg-rose-500/10 border border-rose-500/30 flex items-center gap-2 text-rose-400 text-xs">
+                  <AlertCircle size={14} className="shrink-0" />
+                  <span>{deleteTalentError}</span>
+                </div>
+              )}
+
               <div className="flex items-center justify-end gap-3">
-                <button type="button" onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-lg border border-gold/20 text-stone hover:text-ivory text-xs min-h-[40px]">Cancel</button>
-                <button type="button" onClick={handleConfirmDelete} className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold min-h-[40px] flex items-center gap-1.5"><Trash2 size={13} /> Delete</button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!isDeletingTalent) {
+                      setConfirmDelete(null);
+                      setDeleteTalentError(null);
+                    }
+                  }}
+                  disabled={isDeletingTalent}
+                  className="px-4 py-2 rounded-lg border border-gold/20 text-stone hover:text-ivory text-xs min-h-[40px] disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmDelete}
+                  disabled={isDeletingTalent}
+                  className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold min-h-[40px] flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isDeletingTalent ? (
+                    <>
+                      <Loader2 size={13} className="animate-spin" /> Deleting...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={13} /> Delete
+                    </>
+                  )}
+                </button>
               </div>
             </div>
           </div>

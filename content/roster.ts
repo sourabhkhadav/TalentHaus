@@ -1,6 +1,5 @@
 // ──────────────────────────────────────────────
 // ROSTER CONTENT — Talent Management Data
-// PLACEHOLDER: Replace all entries with real talent profiles
 // ──────────────────────────────────────────────
 
 export type Platform = "Instagram" | "YouTube" | "TikTok" | "Twitter" | "LinkedIn" | "Podcast";
@@ -43,7 +42,7 @@ export const roster: TalentProfile[] = [
     audienceSize: "1M",
     engagementRate: "High Engagement",
     image: "https://res.cloudinary.com/nssbycq1/image/upload/v1792376694/talenthaus/creators/nsg1jedw2ukkofiwfvvg.jpg",
-    coverImage: "https://res.cloudinary.com/nssbycq1/image/upload/v1792376694/talenthaus/creators/nsg1jedw2ukkofiwfvvg.jpg",
+    coverImage: "/images/roster/placeholder-cover.jpg",
     cloudinaryPublicId: "talenthaus/creators/nsg1jedw2ukkofiwfvvg",
     featured: true,
     status: "published",
@@ -67,28 +66,48 @@ export const roster: TalentProfile[] = [
     featured: true,
     status: "published",
     instagramHandle: "rishiagrawalofficial",
+    instagramFollowers: "850K",
     selectedWork: [],
   },
   {
-    slug: "ayuxiety",
-    name: "Ayuxiety",
-    niche: ["Lifestyle", "Fashion"],
-    platforms: ["Instagram"],
-    location: "India",
-    bio: "Ayuxiety is exclusively represented by TalentHaus for talent management and strategic brand collaborations. Built around contemporary aesthetics, curated visual style, and dedicated digital followers.",
-    shortBio: "TalentHaus represented creator · Lifestyle & Fashion.",
-    audienceSize: "Verified Roster",
+    slug: "amit-chandel",
+    name: "Amit Chandel",
+    niche: ["Entertainment"],
+    platforms: ["Instagram", "YouTube"],
+    location: "Bhopal, India",
+    bio: "Amit Chandel is represented exclusively by TalentHaus for talent management and strategic digital brand collaborations.",
+    shortBio: "Amit Chandel across platforms · Entertainment.",
+    audienceSize: "899K",
     engagementRate: "High Engagement",
-    image: "https://res.cloudinary.com/nssbycq1/image/upload/v1792335899/talenthaus/creators/qnnux0dlefehbhdke7xz.jpg",
-    coverImage: "https://res.cloudinary.com/nssbycq1/image/upload/v1792335899/talenthaus/creators/qnnux0dlefehbhdke7xz.jpg",
-    cloudinaryPublicId: "talenthaus/creators/qnnux0dlefehbhdke7xz",
+    image: "https://res.cloudinary.com/nssbycq1/image/upload/v1792428447/talenthaus/creators/sstpoeqc3de0aeists0f.jpg",
+    coverImage: "/images/roster/placeholder-cover.jpg",
+    cloudinaryPublicId: "talenthaus/creators/sstpoeqc3de0aeists0f",
     featured: true,
     status: "published",
-    instagramHandle: "ayuxiety_",
+    instagramHandle: "amit__chandel_",
+    instagramFollowers: "899K",
+    selectedWork: [],
+  },
+  {
+    slug: "mishti-pathak",
+    name: "Mishti Pathak",
+    niche: ["Fashion"],
+    platforms: ["Instagram", "YouTube"],
+    location: "Indore, India",
+    bio: "Mishti Pathak is represented exclusively by TalentHaus.",
+    shortBio: "Mishti Pathak across platforms · Fashion.",
+    audienceSize: "137K",
+    engagementRate: "High Engagement",
+    image: "https://res.cloudinary.com/nssbycq1/image/upload/v1794051358/talenthaus/creators/ny8iilhifkou4pnrj96p.jpg",
+    coverImage: "/images/roster/placeholder-cover.jpg",
+    cloudinaryPublicId: "talenthaus/creators/ny8iilhifkou4pnrj96p",
+    featured: true,
+    status: "published",
+    instagramHandle: "mishtiii.i_",
+    instagramFollowers: "137K",
     selectedWork: [],
   },
 ];
 
 export const niches: Niche[] = ["Fashion", "Beauty", "Lifestyle", "Tech", "Finance", "Fitness", "Food", "Travel", "Gaming", "Music", "Comedy", "Business", "Entertainment"];
 export const platforms: Platform[] = ["Instagram", "YouTube", "TikTok", "Twitter", "LinkedIn", "Podcast"];
-

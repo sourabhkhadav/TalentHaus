@@ -1,5 +1,74 @@
 [
   {
+    "slug": "mishti-pathak",
+    "name": "Mishti Pathak",
+    "niche": [],
+    "platforms": [
+      "Instagram",
+      "YouTube"
+    ],
+    "location": "Indore, India",
+    "bio": "Mishti Pathak is represented exclusively by TalentHaus.",
+    "shortBio": "Mishti Pathak across platforms.",
+    "audienceSize": "137 K",
+    "engagementRate": "High Engagement",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1794051358/talenthaus/creators/ny8iilhifkou4pnrj96p.jpg",
+    "coverImage": "/images/roster/placeholder-cover.jpg",
+    "cloudinaryPublicId": "talenthaus/creators/ny8iilhifkou4pnrj96p",
+    "featured": true,
+    "status": "published",
+    "instagramHandle": "mishtiii.i_",
+    "instagramFollowers": "1347k",
+    "selectedWork": []
+  },
+  {
+    "slug": "rishi-agrawal",
+    "name": "Rishi Agrawal",
+    "niche": [],
+    "platforms": [
+      "Instagram"
+    ],
+    "location": "India",
+    "bio": "Rishi Agrawal is exclusively represented by TalentHaus for talent management, brand sponsorships, and commercial partnerships. Known for high-engagement digital storytelling and authentic community resonance.",
+    "shortBio": "TalentHaus represented creator · Lifestyle & Entertainment.",
+    "audienceSize": "Verified Roster",
+    "engagementRate": "High Engagement",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335379/talenthaus/creators/rp1kdc7fqpow1wurnyzb.jpg",
+    "coverImage": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335851/talenthaus/creators/sbuk4t2xswwgougralor.jpg",
+    "cloudinaryPublicId": "talenthaus/creators/rp1kdc7fqpow1wurnyzb",
+    "featured": true,
+    "status": "published",
+    "instagramHandle": "rishiagrawalofficial",
+    "instagramFollowers": "850K",
+    "selectedWork": []
+  },
+  {
+    "slug": "najim-pathan",
+    "name": "Najim Pathan",
+    "niche": [],
+    "platforms": [
+      "Instagram",
+      "YouTube"
+    ],
+    "location": " India",
+    "bio": "Newly represented creator with exceptional audience engagement.",
+    "shortBio": "Najim Pathan across platforms.",
+    "audienceSize": "1M",
+    "engagementRate": "High Engagement",
+    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792376694/talenthaus/creators/nsg1jedw2ukkofiwfvvg.jpg",
+    "coverImage": "/images/roster/placeholder-cover.jpg",
+    "cloudinaryPublicId": "talenthaus/creators/nsg1jedw2ukkofiwfvvg",
+    "coverCloudinaryPublicId": "",
+    "featured": true,
+    "status": "published",
+    "instagramHandle": "najo10no_",
+    "instagramFollowers": "1M",
+    "youtubeHandle": "",
+    "youtubeSubscribers": "",
+    "tiktokHandle": "",
+    "selectedWork": []
+  },
+  {
     "name": "Amit Chandel",
     "slug": "amit-chandel",
     "location": "bhopal, India",
@@ -21,88 +90,6 @@
     "status": "published",
     "instagramHandle": "amit__chandel_",
     "instagramFollowers": "899K",
-    "youtubeHandle": "",
-    "youtubeSubscribers": "",
-    "tiktokHandle": "",
-    "coverCloudinaryPublicId": ""
-  },
-  {
-    "name": "Najim Pathan",
-    "slug": "najim-pathan",
-    "location": "maharastra , INDIA",
-    "audienceSize": "1M",
-    "engagementRate": "High Engagement",
-    "bio": "Newly represented creator with exceptional audience engagement.",
-    "shortBio": "Najim Pathan across platforms.",
-    "niche": [
-      "Entertainment",
-      "Fashion"
-    ],
-    "platforms": [
-      "Instagram",
-      "YouTube"
-    ],
-    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792376694/talenthaus/creators/nsg1jedw2ukkofiwfvvg.jpg",
-    "coverImage": "/images/roster/placeholder-cover.jpg",
-    "featured": true,
-    "status": "published",
-    "instagramHandle": "najo10no_",
-    "instagramFollowers": "1M",
-    "cloudinaryPublicId": "talenthaus/creators/nsg1jedw2ukkofiwfvvg",
-    "youtubeHandle": "",
-    "youtubeSubscribers": "",
-    "tiktokHandle": "",
-    "coverCloudinaryPublicId": ""
-  },
-  {
-    "slug": "rishi-agrawal",
-    "name": "Rishi Agrawal",
-    "niche": [
-      "Entertainment"
-    ],
-    "platforms": [
-      "Instagram"
-    ],
-    "location": "India",
-    "bio": "Rishi Agrawal is exclusively represented by TalentHaus for talent management, brand sponsorships, and commercial partnerships. Known for high-engagement digital storytelling and authentic community resonance.",
-    "shortBio": "TalentHaus represented creator · Lifestyle & Entertainment.",
-    "audienceSize": "Verified Roster",
-    "engagementRate": "High Engagement",
-    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335379/talenthaus/creators/rp1kdc7fqpow1wurnyzb.jpg",
-    "coverImage": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335851/talenthaus/creators/sbuk4t2xswwgougralor.jpg",
-    "cloudinaryPublicId": "talenthaus/creators/rp1kdc7fqpow1wurnyzb",
-    "featured": true,
-    "status": "published",
-    "instagramHandle": "rishiagrawalofficial",
-    "selectedWork": [],
-    "instagramFollowers": "",
-    "youtubeHandle": "",
-    "youtubeSubscribers": "",
-    "tiktokHandle": "",
-    "coverCloudinaryPublicId": ""
-  },
-  {
-    "slug": "ayuxiety",
-    "name": "Ayuxiety",
-    "niche": [
-      "Entertainment"
-    ],
-    "platforms": [
-      "Instagram"
-    ],
-    "location": "India",
-    "bio": "Ayuxiety is exclusively represented by TalentHaus for talent management and strategic brand collaborations. Built around contemporary aesthetics, curated visual style, and dedicated digital followers.",
-    "shortBio": "TalentHaus represented creator · Lifestyle & Fashion.",
-    "audienceSize": "Verified Roster",
-    "engagementRate": "High Engagement",
-    "image": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335899/talenthaus/creators/qnnux0dlefehbhdke7xz.jpg",
-    "coverImage": "https://res.cloudinary.com/nssbycq1/image/upload/v1792335899/talenthaus/creators/qnnux0dlefehbhdke7xz.jpg",
-    "cloudinaryPublicId": "talenthaus/creators/qnnux0dlefehbhdke7xz",
-    "featured": true,
-    "status": "published",
-    "instagramHandle": "ayuxiety_",
-    "selectedWork": [],
-    "instagramFollowers": "",
     "youtubeHandle": "",
     "youtubeSubscribers": "",
     "tiktokHandle": "",

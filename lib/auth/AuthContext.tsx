@@ -57,12 +57,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // 2. Attempt profile fetch from Supabase profiles table
     try {
-      const { data: profile } = await supabase.from("profiles").select("role").eq("id", sbUser.id).single();
-      if (profile && profile.role) {
+      const { data: profile, error: profileError } = await supabase
+        .from("profiles")
+        .select("role")
+        .eq("id", sbUser.id)
+        .maybeSingle();
+      if (!profileError && profile?.role) {
         role = profile.role as Role;
       }
+      // 400 = table doesn't exist or RLS blocks — silently ignored
     } catch {
-      // profiles query skipped or unavailable
+      // profiles query skipped
     }
 
     // 3. Check official app_metadata and user_metadata roles

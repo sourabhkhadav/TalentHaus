@@ -95,6 +95,7 @@ export function AdminClient() {
   const [showAddTask, setShowAddTask] = useState(false);
   const [showAddTalent, setShowAddTalent] = useState(false);
   const [editingCreator, setEditingCreator] = useState<TalentProfile | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<{ slug: string; name: string } | null>(null);
 
   // Talent state feedback
   const [isSavingTalent, setIsSavingTalent] = useState(false);
@@ -515,15 +516,18 @@ export function AdminClient() {
     }
   };
 
-  const handleDeleteTalent = async (slug: string, name: string) => {
-    if (window.confirm(`Are you sure you want to remove ${name} from the agency roster?`)) {
-      const res = await deleteTalentFromRosterAsync(slug, user?.name?.toLowerCase() || "sourabh");
-      if (res.success) {
-        setRoster((prev) => prev.filter((t) => t.slug !== slug));
-        await syncRoster();
-      } else {
-        alert(res.error || "Failed to delete creator.");
-      }
+  const handleDeleteTalent = (slug: string, name: string) => {
+    setConfirmDelete({ slug, name });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    const { slug } = confirmDelete;
+    setConfirmDelete(null);
+    const res = await deleteTalentFromRosterAsync(slug, user?.name?.toLowerCase() || "sourabh");
+    if (res.success) {
+      setRoster((prev) => prev.filter((t) => t.slug !== slug));
+      await syncRoster();
     }
   };
 
@@ -2363,6 +2367,20 @@ export function AdminClient() {
               setSelectedCreatorForPhoto((prev) => (prev ? { ...prev, ...updates } : null));
             }}
           />
+        )}
+
+        {/* Delete Confirm Modal */}
+        {confirmDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-obsidian/80 backdrop-blur-sm">
+            <div className="bg-plum border border-rose-500/40 rounded-2xl max-w-sm w-full p-6 shadow-2xl">
+              <h3 className="font-display text-ivory text-xl mb-2">Remove Creator?</h3>
+              <p className="text-stone text-xs mb-6">This will permanently remove <strong className="text-ivory">{confirmDelete.name}</strong> from the roster.</p>
+              <div className="flex items-center justify-end gap-3">
+                <button type="button" onClick={() => setConfirmDelete(null)} className="px-4 py-2 rounded-lg border border-gold/20 text-stone hover:text-ivory text-xs min-h-[40px]">Cancel</button>
+                <button type="button" onClick={handleConfirmDelete} className="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold min-h-[40px] flex items-center gap-1.5"><Trash2 size={13} /> Delete</button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Creator Edit Details Modal */}

@@ -76,7 +76,7 @@ export default function RootLayout({
     children: React.ReactNode;
 }>) {
     return (
-        <html lang="en" className={`${instrumentSerif.variable} ${manrope.variable}`}>
+        <html lang="en" className={`${instrumentSerif.variable} ${manrope.variable}`} suppressHydrationWarning>
             <head>
                 <script
                     type="application/ld+json"
@@ -89,6 +89,7 @@ export default function RootLayout({
                 style={{
                     fontFamily: "var(--font-body-loaded, var(--font-body))",
                 }}
+                suppressHydrationWarning
             >
                 {/* Skip link */}
                 <a

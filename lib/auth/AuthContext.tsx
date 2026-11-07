@@ -62,7 +62,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select("role")
         .eq("id", sbUser.id)
         .maybeSingle();
-      if (!profileError && profile?.role) {
+      if (!profileError && profile?.role && role !== "founder") {
         role = profile.role as Role;
       }
       // 400 = table doesn't exist or RLS blocks — silently ignored

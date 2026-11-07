@@ -186,7 +186,7 @@ export default function AboutPage() {
                     >
                         The people who <em className="italic bg-gradient-to-r from-[#4F46E5] to-[#7C3AED] bg-clip-text text-transparent font-normal">make it happen.</em>
                     </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 md:gap-8">
+                    <div className="grid grid-cols-1 md:grid-cols-1 gap-6 md:gap-8 max-w-sm">
                         {team.map((member) => (
                             <article key={member.name} className="group rounded-2xl p-5 sm:p-6 bg-[#EEF2FF] lg:bg-white/90 hover:bg-white border border-[#DCE5FF] lg:border-white/95 hover:border-indigo-300 transition-all duration-300 shadow-[0_4px_16px_rgba(79,70,229,0.04)] lg:shadow-[0_12px_40px_rgba(30,27,75,0.08)] hover:shadow-[0_20px_50px_rgba(79,70,229,0.18)]">
                                 {/* Portrait photo or monogram placeholder */}

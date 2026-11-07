@@ -9,6 +9,8 @@ import { mapInfluencerRowToTalent, mapTalentToInfluencerRow } from "@/lib/data";
 
 const DATA_FILE_PATH = path.join(process.cwd(), "content", "roster-data.json");
 
+export const dynamic = "force-dynamic";
+
 function readCreatorsFromFile(): TalentProfile[] {
   try {
     if (fs.existsSync(DATA_FILE_PATH)) {

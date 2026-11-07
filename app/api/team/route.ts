@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getTeamServer, saveTeamServer, FounderProfile } from "@/lib/data/teamServer";
 import { verifyServerFounderAuth } from "@/lib/auth/serverAuth";
 
+export const dynamic = "force-dynamic";
+
 // GET all founders / team members
 export async function GET() {
   try {

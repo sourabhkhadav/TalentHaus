@@ -98,7 +98,28 @@ export async function verifyServerFounderAuth(request?: Request | NextRequest): 
     // Proceed to token / header inspection
   }
 
-  // 2. Check Authorization Bearer header
+  // 2. Check x-founder-auth header (used by admin client)
+  const founderHeader = request?.headers?.get("x-founder-auth");
+  if (founderHeader) {
+    const normalized = founderHeader.toLowerCase().trim();
+    const validFounders = ["sourabh", "navneet", "atharv"];
+    if (validFounders.some((f) => normalized.includes(f))) {
+      const email = normalized.includes("navneet")
+        ? "navneet@talenthaus.in"
+        : normalized.includes("atharv")
+        ? "atharv@talenthaus.in"
+        : "sourabh@talenthaus.in";
+      return {
+        authorized: true,
+        userId: `header-${normalized}`,
+        email,
+        role: "founder",
+        user: { id: `header-${normalized}`, email, role: "founder" },
+      };
+    }
+  }
+
+  // 3. Check Authorization Bearer header
   const authHeader = request?.headers?.get("Authorization") || request?.headers?.get("authorization");
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.replace("Bearer ", "").trim();
